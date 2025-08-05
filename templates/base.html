@@ -94,6 +94,9 @@
         </script>
     {% endcompress %}
     {% block js_media %}{% endblock %}
+        {% if request.user.is_authenticated and request.profile.current_contest and not request.participation.spectate %}
+        {% include "contest/contest-mode-global.html" %}
+    {% endif %}
     {% if request.in_contest %}
         <script>$(function () {
             count_down($("#contest-time-remaining"));

@@ -13,10 +13,11 @@
 
             $('.contest-tag').find('a[data-featherlight]').featherlight();
 
-            $('.join-warning').click(function () {
-                return confirm({{ _('Are you sure you want to join?')|htmltojs }} + '\n' +
-                    {{ _('Joining a contest for the first time starts your timer, after which it becomes unstoppable.')|htmltojs }});
-            });
+            // REMOVED: Competing handler that was preventing fullscreen
+            // $('.join-warning').click(function () {
+            //     return confirm({{ _('Are you sure you want to join?')|htmltojs }} + '\n' +
+            //         {{ _('Joining a contest for the first time starts your timer, after which it becomes unstoppable.')|htmltojs }});
+            // });
 
             // var tooltip_classes = 'tooltipped tooltipped-e';
             //
@@ -118,7 +119,14 @@
 {% macro contest_join(contest, request, finished_contests) %}
     {% if not request.in_contest %}
         <td>
-            {% if contest.is_live_joinable_by(request.user) %}
+            {% set has_exited = contest.users.filter(user=request.profile, has_exited=True).exists() if request.user.is_authenticated else False %}
+            {% if has_exited %}
+                <div class="unselectable button full disabled">
+                    <span class="disabled" title="{{ _('You have exited this contest and cannot rejoin.') }}">
+                        {{ _('Cannot rejoin') }}
+                    </span>
+                </div>
+            {% elif contest.is_live_joinable_by(request.user) %}
                 <form action="{{ url('contest_join', contest.key) }}" method="post">
                     {% csrf_token %}
                     <input type="submit" class="unselectable button full participate-button join-warning"

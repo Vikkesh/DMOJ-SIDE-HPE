@@ -87,7 +87,7 @@ def find_free_port(start_port=3001, max_port=3100, used_ports=set()):
 def download_problem_submissions(request, contest_key,problem_code):
     contest = Contest.objects.get(key=contest_key)
     problems = contest.problems.all()
-    base_dir = "/home/sukhraj/submissions"  # or any path you want
+    base_dir = "/home/vikkesh/submissions"  # or any path you want
     os.makedirs(base_dir, exist_ok=True)
     tmp_dir = os.path.join(base_dir, f"contest_{contest_key}_{timestamp}")
     os.makedirs(tmp_dir, exist_ok=True)
@@ -192,14 +192,13 @@ def download_problem_submissions(request, contest_key,problem_code):
 
     finally:
         print("[✓] Finished preparing submissions and running Dolos.")
-<<<<<<< HEAD
 
 
 #CREATING THE TABLE TO BE DISPLAYED
 
 
 def read_similarity_matrix(contest_key):
-    pattern = f"/home/sukhraj/submissions/contest_{contest_key}_*/{contest_key}_similarity_matrix.txt"
+    pattern = f"/home/vikkesh/submissions/contest_{contest_key}_*/{contest_key}_similarity_matrix.txt"
     matching_files = glob.glob(pattern)
     if not matching_files:
         return [], []
@@ -239,5 +238,3 @@ def show_similarity_table(request, contest_key):
         'headers': headers,
         'rows': rows,
     })
-=======
->>>>>>> b9fb526b16791f843692a3e526b91105d2b02777

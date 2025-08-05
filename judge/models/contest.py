@@ -525,6 +525,8 @@ class ContestParticipation(models.Model):
     virtual = models.IntegerField(verbose_name=_('virtual participation id'), default=LIVE,
                                   help_text=_('0 means non-virtual, otherwise the n-th virtual participation.'))
     format_data = JSONField(verbose_name=_('contest format specific data'), null=True, blank=True)
+    has_exited = models.BooleanField(verbose_name=_('has exited contest'), default=False,
+                                    help_text=_('Whether this user has exited the contest and cannot rejoin.'))
 
     def recompute_results(self):
         with transaction.atomic():

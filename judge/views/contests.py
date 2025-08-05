@@ -394,6 +394,11 @@ class ContestJoin(LoginRequiredMixin, ContestMixin, SingleObjectMixin, View):
                                    _('You have been declared persona non grata for this contest. '
                                      'You are permanently barred from joining this contest.'))
 
+        # Check if user has exited this contest before and cannot rejoin
+        if ContestParticipation.objects.filter(contest=contest, user=profile, has_exited=True).exists():
+            return generic_message(request, _('Cannot rejoin contest'),
+                                   _('You have previously exited this contest and cannot rejoin.'))
+
         requires_access_code = (not self.can_edit and contest.access_code and access_code != contest.access_code)
         if contest.ended:
             if requires_access_code:
@@ -472,6 +477,11 @@ class ContestLeave(LoginRequiredMixin, ContestMixin, SingleObjectMixin, View):
         if profile.current_contest is None or profile.current_contest.contest_id != contest.id:
             return generic_message(request, _('No such contest'),
                                    _('You are not in contest "%s".') % contest.key, 404)
+
+        # Mark the participation as exited so user cannot rejoin
+        participation = profile.current_contest
+        participation.has_exited = True
+        participation.save(update_fields=['has_exited'])
 
         profile.remove_contest()
         return HttpResponseRedirect(reverse('contest_view', args=(contest.key,)))

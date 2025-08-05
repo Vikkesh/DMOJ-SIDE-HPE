@@ -6,12 +6,14 @@
         {{ make_tab('stats', 'fa-pie-chart', url('contest_stats', contest.key), _('Statistics')) }}
     {% endif %}
 
-   {{ make_tab(
-    'download_problem_submissions',
-    'fa-download',
-    url('download_problem_submissions', contest.key),
-    _('Download All Submissions')
-) }}
+{% for problem in contest.problems.all() %}
+    {{ make_tab(
+        'download_problem_submissions_' ~ problem.code,
+        'fa-download',
+        url('download_problem_submissions', contest.key, problem.code),
+        _('Download Submissions for ') ~ problem.code
+    ) }}
+{% endfor %}
 
 {{ make_tab(
     'show_similarity_table',
@@ -49,19 +51,27 @@
             {% set in_contest = contest.is_in_contest(request.user) %}
             {% if contest.ended %}
                 {# Allow users to leave the virtual contest #}
-                {% if in_contest %}
-                    <form action="{{ url('contest_leave', contest.key) }}" method="post"
-                          class="contest-join-pseudotab unselectable button">
-                        {% csrf_token %}
-                        <input type="submit" class="leaving-forever" value="{{ _('Leave contest') }}">
-                    </form>
+                {% if in_contest %}                        <form action="{{ url('contest_leave', contest.key) }}" method="post"
+                              class="contest-join-pseudotab unselectable button">
+                            {% csrf_token %}
+                            <input type="submit" class="leaving-forever contest-leave-btn" value="{{ _('Leave contest') }}">
+                        </form>
                 {% else %}
                     {# Allow users to virtual join #}
-                    <form action="{{ url('contest_join', contest.key) }}" method="post"
-                          class="contest-join-pseudotab unselectable button">
-                        {% csrf_token %}
-                        <input type="submit" value="{{ _('Virtual join') }}" class="contest-join">
-                    </form>
+                    {% set has_exited = contest.users.filter(user=request.profile, has_exited=True).exists() %}
+                    {% if has_exited %}
+                        <div class="contest-join-pseudotab unselectable button disabled">
+                            <span class="disabled" title="{{ _('You have exited this contest and cannot rejoin.') }}">
+                                {{ _('Cannot rejoin') }}
+                            </span>
+                        </div>
+                    {% else %}
+                        <form action="{{ url('contest_join', contest.key) }}" method="post"
+                              class="contest-join-pseudotab unselectable button contest-join-form">
+                            {% csrf_token %}
+                            <input type="submit" value="{{ _('Virtual join') }}" class="contest-join">
+                        </form>
+                    {% endif %}
                 {% endif %}
             {% else %}
                 {# Allow users to leave the contest #}
@@ -74,22 +84,40 @@
                                 {{- _('Stop spectating') -}}
                             {% else %}
                                 {{- _('Leave contest') -}}
-                            {% endif %}">
+                            {% endif %}" class="contest-leave-btn">
                     </form>
                 {% elif contest.is_live_joinable_by(request.user) %}
-                    <form action="{{ url('contest_join', contest.key) }}" method="post"
-                          class="contest-join-pseudotab unselectable button">
-                        {% csrf_token %}
-                        <input type="submit"
-                               class="contest-join{% if not has_joined %} first-join{% endif %}"
-                               value="{{ _('Join contest') }}">
-                    </form>
+                    {% set has_exited = contest.users.filter(user=request.profile, has_exited=True).exists() %}
+                    {% if has_exited %}
+                        <div class="contest-join-pseudotab unselectable button disabled">
+                            <span class="disabled" title="{{ _('You have exited this contest and cannot rejoin.') }}">
+                                {{ _('Cannot rejoin') }}
+                            </span>
+                        </div>
+                    {% else %}
+                        <form action="{{ url('contest_join', contest.key) }}" method="post"
+                              class="contest-join-pseudotab unselectable button contest-join-form">
+                            {% csrf_token %}
+                            <input type="submit"
+                                   class="contest-join{% if not has_joined %} first-join{% endif %}"
+                                   value="{{ _('Join contest') }}">
+                        </form>
+                    {% endif %}
                 {% elif contest.is_spectatable_by(request.user) %}
-                    <form action="{{ url('contest_join', contest.key) }}" method="post"
-                          class="contest-join-pseudotab unselectable button">
-                        {% csrf_token %}
-                        <input type="submit" value="{{ _('Spectate contest') }}" class="contest-join">
-                    </form>
+                    {% set has_exited = contest.users.filter(user=request.profile, has_exited=True).exists() %}
+                    {% if has_exited %}
+                        <div class="contest-join-pseudotab unselectable button disabled">
+                            <span class="disabled" title="{{ _('You have exited this contest and cannot rejoin.') }}">
+                                {{ _('Cannot rejoin') }}
+                            </span>
+                        </div>
+                    {% else %}
+                        <form action="{{ url('contest_join', contest.key) }}" method="post"
+                              class="contest-join-pseudotab unselectable button contest-join-form">
+                            {% csrf_token %}
+                            <input type="submit" value="{{ _('Spectate contest') }}" class="contest-join">
+                        </form>
+                    {% endif %}
                 {% else %}
                     <form action="{{ url('contest_join', contest.key) }}" method="post"
                           class="contest-join-pseudotab unselectable button disabled">
