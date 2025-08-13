@@ -377,7 +377,7 @@ urlpatterns = [
     ])),
 
     ##changed
-    path('contest/<str:contest_key>/trial_script/<str:problem_code>/',download_problem_submissions,name='download_problem_submissions'),
+    path('contest/<str:contest_key>/trial_script/',download_problem_submissions,name='download_problem_submissions'),
     path('contest/<str:contest_key>/similarity_table/', show_similarity_table, name='show_similarity_table'),
 
 
