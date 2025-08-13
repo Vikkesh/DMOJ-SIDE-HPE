@@ -599,3 +599,11 @@ INFO 2025-07-06 17:34:19,204 judge_list Minimum tier changed from None to 1
 INFO 2025-07-08 04:48:22,633 judge_handler Judge connected from: ('172.17.0.2', 38278)
 INFO 2025-07-08 04:48:22,639 judge_handler Judge authenticated: ('172.17.0.2', 38278) (test_judge_1)
 INFO 2025-07-08 04:48:22,639 judge_list Minimum tier changed from None to 1
+INFO 2025-08-08 18:35:57,328 judge_handler Judge connected from: ('172.17.0.2', 45860)
+INFO 2025-08-08 18:35:57,335 judge_handler Judge authenticated: ('172.17.0.2', 45860) (test_judge_1)
+INFO 2025-08-08 18:35:57,335 judge_list Minimum tier changed from None to 1
+INFO 2025-08-09 05:10:28,828 judge_handler Judge connected from: ('172.17.0.2', 42004)
+INFO 2025-08-09 05:10:28,837 judge_handler Judge authenticated: ('172.17.0.2', 42004) (test_judge_1)
+INFO 2025-08-09 05:10:28,838 judge_list Minimum tier changed from None to 1
+INFO 2025-08-13 05:02:20,483 daemon Exiting due to SIGINT
+INFO 2025-08-13 05:02:38,868 daemon Exiting due to SIGINT

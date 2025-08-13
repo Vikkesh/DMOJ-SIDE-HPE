@@ -41,6 +41,7 @@ register_patterns = [
     # that way, it can return a sensible "invalid key" message instead of a confusing 404.
     path('activate/<str:activation_key>/', ActivationView.as_view(), name='registration_activate'),
     #path('judge/', include('judge.urls')),  # If not already present,
+    #path('judge/', include('judge.urls')),  # If not already present,
     path('register/', RegistrationView.as_view(), name='registration_register'),
     path('register/complete/',
          TitledTemplateView.as_view(template_name='registration/registration_complete.html',

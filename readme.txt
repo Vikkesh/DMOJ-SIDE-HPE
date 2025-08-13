@@ -1,4 +1,5 @@
 WHAT ALL TO DO 
+On pulling the repo, all these changes should already be there. (JUST MAKE SURE TO DOWNLOAD DOLOS (as given below))
 
 >>> FOR COPY-PASTE PREVENTION PART
 go to site/django_ace/static/django_ace/
@@ -37,8 +38,14 @@ are stored.
  environment. Go to /site directory where manage.py file is kept.
  
  /* CHECK manage.py AS A PRECAUTIONARY MEASURE FOR ANY CHANGES (like from my repo) */
- then, run : python manage.py runserver 0.0.0.0:8000
+
+ then, run :
+python manage.py makemigrations (after doing changes to models)
+python manage.py migrate (this too) 
+then
+python manage.py runserver 0.0.0.0:8000
  
  (this is given that you have python3 installed in the venv)
  
  
+

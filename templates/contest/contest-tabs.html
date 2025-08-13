@@ -36,6 +36,9 @@
 
 
 
+
+
+
     {% if can_edit %}
         {% if perms.judge.moss_contest and has_moss_api_key %}
             {{ make_tab('moss', 'fa-gavel', url('contest_moss', contest.key), _('MOSS')) }}

@@ -1,4 +1,5 @@
 from django.http import FileResponse
+from django.contrib.auth.models import User
 import tempfile
 import os
 import zipfile
@@ -6,7 +7,7 @@ import subprocess
 import csv
 from collections import defaultdict
 import socket
-from judge.models import Contest, ContestSubmission, SubmissionSource
+from judge.models import Contest, ContestSubmission, SubmissionSource, SimilarityScore
 import datetime
 import glob
 from django.shortcuts import render
@@ -37,8 +38,8 @@ def extract_username(filename):
     return name  # fallback (e.g. no underscore or submission ID)
 
 
-
-def extract_similarity_data(report_csv_paths):
+#form the CSV file, reads the similarity score
+def extract_similarity_data(report_csv_paths,contest_key):
     similarity_data = defaultdict(lambda: defaultdict(float))  # username -> problem_code -> max_similarity
 
     for path in report_csv_paths:
@@ -51,7 +52,7 @@ def extract_similarity_data(report_csv_paths):
         
         # Optional cleanup: remove 'submissions' suffix
         if problem_code.endswith('submissions'):
-            problem_code = problem_code[:-11]  # now just 'twosumPython3'
+            problem_code = problem_code[:-11]  # now just 'twosumPython3' so removed the word 
 
 
         with open(path, newline='') as csvfile:
@@ -65,6 +66,23 @@ def extract_similarity_data(report_csv_paths):
 
                 similarity_data[user1][problem_code] = max(similarity_data[user1][problem_code], similarity)
                 similarity_data[user2][problem_code] = max(similarity_data[user2][problem_code], similarity)
+
+    
+    #storing in a database
+    for username, problems in similarity_data.items():
+        for problem_code, score in problems.items():
+            contest = Contest.objects.get(key=contest_key)
+            user = User.objects.get(username=username)
+
+            SimilarityScore.objects.update_or_create(
+                contest=contest,
+                user=user,
+                problem_code=problem_code,
+                defaults={'similarity_percent': score * 100}
+)
+
+
+
 
     return similarity_data
 
@@ -84,7 +102,7 @@ def find_free_port(start_port=3001, max_port=3100, used_ports=set()):
 
     # ///////////////////////////////////
 
-def download_problem_submissions(request, contest_key,problem_code):
+def download_problem_submissions(request, contest_key):
     contest = Contest.objects.get(key=contest_key)
     problems = contest.problems.all()
     base_dir = "/home/vikkesh/submissions"  # or any path you want
@@ -159,32 +177,31 @@ def download_problem_submissions(request, contest_key,problem_code):
 
         report_csv_paths = glob.glob(os.path.join(tmp_dir, "dolos-report-*/pairs.csv"))
 
-        sim_data = extract_similarity_data(report_csv_paths)
+        sim_data = extract_similarity_data(report_csv_paths, contest_key)       
+        for username, scores in sim_data.items():
+            try:
+                user = User.objects.get(username=username)
+            except User.DoesNotExist:
+                print(f"[!] User '{username}' not found in database.")
+                continue
 
-        similarity_matrix_path = os.path.join(tmp_dir, f"{contest_key}_similarity_matrix.txt")
-        with open(similarity_matrix_path, 'w') as out_file:
-            for username, scores in sim_data.items():
-                line = f"{username}"
-                for problem in problems:
-                    code = problem.code
+            for problem in problems:
+                code = problem.code
+                matching_key = next((k for k in scores if code in k), None)
+                sim_percent = (scores[matching_key] * 100) if matching_key else 0.0
 
-                    # Try to find any key in scores that contains the problem code
-                    matching_key = next((k for k in scores if code in k), None)
-                    sim_percent = (scores[matching_key]*100) if matching_key else 0.0
-
-                    line += f" : {code} {sim_percent:.2f}%"
-                out_file.write(line + "\n")
+                SimilarityScore.objects.update_or_create(
+                    contest=contest,
+                    user=user,
+                    problem_code=code,
+                    defaults={'similarity_percent': sim_percent}
+        )
         
         final_zip_path = os.path.join(tmp_dir, f"{contest_key}_grouped_submissions.zip")
         with zipfile.ZipFile(final_zip_path, 'w', zipfile.ZIP_DEFLATED) as final_zip:
             for zip_file in lang_zip_paths:
-                arcname = os.path.basename(zip_file)
+                arcname = os.path.basename(zip_file)  
                 final_zip.write(zip_file, arcname=arcname)
-
-
-
-            final_zip.write(similarity_matrix_path, arcname=os.path.basename(similarity_matrix_path))
-
 
 
         return FileResponse(open(final_zip_path, 'rb'), as_attachment=True,
@@ -192,43 +209,59 @@ def download_problem_submissions(request, contest_key,problem_code):
 
     finally:
         print("[✓] Finished preparing submissions and running Dolos.")
+#<<<<<<< HEAD
 
 
 #CREATING THE TABLE TO BE DISPLAYED
 
 
 def read_similarity_matrix(contest_key):
-    pattern = f"/home/vikkesh/submissions/contest_{contest_key}_*/{contest_key}_similarity_matrix.txt"
-    matching_files = glob.glob(pattern)
-    if not matching_files:
+    try:
+        contest = Contest.objects.get(key=contest_key)
+    except Contest.DoesNotExist:
         return [], []
 
-    # Optional: pick the most recent one
-    path = max(matching_files, key=os.path.getmtime)
+    scores = SimilarityScore.objects.filter(contest=contest)
+    if not scores.exists():
+        return [], []
 
-    with open(path, 'r') as file:
-        lines = file.readlines()
+    users = sorted(set(s.user.username for s in scores))
 
-    headers = []
+    # Strip language suffixes from problem_code
+    def normalize_problem_code(code):
+        for lang in ['C', 'C++', 'C++11', 'Python 2', 'Python 3', 'Java', 'Rust', 'Go',
+                     'Kotlin', 'Pascal', 'Ruby', 'Haskell', 'Perl', 'Scala', 'JavaScript']:
+            suffix = lang.replace(' ', '')  # e.g., 'Python3'
+            if code.endswith(suffix):
+                return code[:-len(suffix)]
+        return code
+
+    normalized_scores = defaultdict(dict)  # normalized_problem -> user -> score
+
+    for score in scores:
+        user = score.user.username
+        problem = normalize_problem_code(score.problem_code)
+        if user not in normalized_scores[problem]:
+            normalized_scores[problem][user] = score.similarity_percent
+        else:
+            # Take the max score if multiple entries for same problem (e.g., Python3 and C++)
+            normalized_scores[problem][user] = max(
+                normalized_scores[problem][user], score.similarity_percent
+            )
+
+    problems = sorted(normalized_scores.keys())
+    headers = problems
     rows = []
 
-    for line in lines:
-        parts = line.strip().split(':')
-        username = parts[0].strip()
-        entries = parts[1:]
-
-        row = [username]
-        for entry in entries:
-            pieces = entry.strip().split()
-            if len(pieces) == 2:
-                question, score = pieces
-                row.append(score)
-                if len(headers) < len(entries):
-                    headers.append(question)
-
+    for user in users:
+        row = [user]
+        for problem in problems:
+            score = normalized_scores[problem].get(user, 0.0)
+            row.append(f"{score:.2f}%")
         rows.append(row)
 
     return headers, rows
+
 
 #NOW SHOW THE TABLE
 
