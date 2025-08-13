@@ -7,6 +7,9 @@
 *~
 *.swp
 <desired bridge log path>
+dmoj/settings.py
+uwsgi.ini
+websocket/config.js
 dmoj/local_settings.py
 resources/ace-dmoj.css
 resources/dark
