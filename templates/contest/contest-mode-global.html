@@ -9,7 +9,7 @@
         contestKey: {{ request.profile.current_contest.contest.key|escapejs if request.user.is_authenticated and request.profile.current_contest else 'null' }},
         hasExitedContest: false,
         tabSwitchCount: null, // Will be loaded from localStorage
-        maxTabSwitches: 3,
+        lastTotalTabSwitches: 0, // Stores the total count before reset
         initialized: false
     };
     
@@ -51,9 +51,28 @@
         localStorage.setItem(storageKey, count.toString());
     }
     
+    function storeLastTotalTabSwitches(count) {
+        var storageKey = 'dmoj_last_total_tab_switches_' + window.dmojContestMode.contestKey;
+        localStorage.setItem(storageKey, count.toString());
+        console.log('Stored last total tab switches:', count);
+    }
+    
+    function getStoredLastTotalTabSwitches() {
+        var storageKey = 'dmoj_last_total_tab_switches_' + window.dmojContestMode.contestKey;
+        var storedCount = localStorage.getItem(storageKey);
+        return storedCount ? parseInt(storedCount, 10) : 0;
+    }
+    
     function clearStoredTabSwitchCount() {
         var storageKey = 'dmoj_tab_switch_count_' + window.dmojContestMode.contestKey;
         console.log('Clearing stored tab switch count for key:', storageKey);
+        
+        // Store the current count as the last total before clearing
+        if (window.dmojContestMode.tabSwitchCount > 0) {
+            window.dmojContestMode.lastTotalTabSwitches = window.dmojContestMode.tabSwitchCount;
+            storeLastTotalTabSwitches(window.dmojContestMode.lastTotalTabSwitches);
+        }
+        
         localStorage.removeItem(storageKey);
     }
     
@@ -110,7 +129,7 @@
         instructions.style.cssText = 'font-size: 18px; margin-bottom: 30px; max-width: 600px; line-height: 1.5;';
         
         var warning = document.createElement('p');
-        warning.textContent = '{{ _("⚠️ Switching tabs more than 3 times will remove you from the contest") }}';
+        warning.textContent = '{{ _("⚠️ Tab switching activity will be monitored and recorded") }}';
         warning.style.cssText = 'font-size: 16px; color: #ff6b6b; font-weight: bold; max-width: 600px; line-height: 1.5;';
         
         var contestInfo = document.createElement('p');
@@ -159,7 +178,7 @@
             'position: fixed;' +
             'top: 10px;' +
             'right: 10px;' +
-            'background-color: rgba(255, 107, 107, 0.9);' +
+            'background-color: rgba(52, 152, 219, 0.9);' +
             'color: white;' +
             'padding: 10px 15px;' +
             'border-radius: 5px;' +
@@ -168,7 +187,7 @@
             'font-weight: bold;' +
             'z-index: 10000;' +
             'box-shadow: 0 2px 8px rgba(0,0,0,0.3);' +
-            'border: 2px solid #ff4757;';
+            'border: 2px solid #3498db;';
         
         // Update display with current stored count
         updateTabSwitchDisplay(counter);
@@ -179,18 +198,9 @@
     
     // Update tab switch counter display
     function updateTabSwitchDisplay(counter) {
-        var remaining = window.dmojContestMode.maxTabSwitches - window.dmojContestMode.tabSwitchCount;
         counter.innerHTML = 
-            '<div>{{ _("Tab Switches") }}: ' + window.dmojContestMode.tabSwitchCount + '/' + window.dmojContestMode.maxTabSwitches + '</div>' +
-            '<div style="font-size: 12px; margin-top: 2px;">' + (remaining > 0 ? remaining + ' {{ _("remaining") }}' : '{{ _("LIMIT REACHED!") }}') + '</div>';
-        
-        // Change color based on remaining switches
-        if (remaining <= 1) {
-            counter.style.backgroundColor = 'rgba(255, 0, 0, 0.9)';
-            counter.style.animation = 'pulse 1s infinite';
-        } else if (remaining <= 2) {
-            counter.style.backgroundColor = 'rgba(255, 165, 0, 0.9)';
-        }
+            '<div>{{ _("Tab Switches") }}: ' + window.dmojContestMode.tabSwitchCount + '</div>' +
+            '<div style="font-size: 12px; margin-top: 2px;">{{ _("Monitoring active") }}</div>';
     }
     
     // Initialize contest monitoring (tab switching, etc.)
@@ -285,8 +295,7 @@
             
             logDetection(detectionMethod, 'TAB SWITCH COUNTED', {
                 ...details,
-                newCount: window.dmojContestMode.tabSwitchCount,
-                maxSwitches: window.dmojContestMode.maxTabSwitches
+                newCount: window.dmojContestMode.tabSwitchCount
             });
             
             // Store the count persistently
@@ -294,13 +303,6 @@
             
             // Update counter display
             updateTabSwitchDisplay(tabCounter);
-            
-            // Check if limit reached
-            if (window.dmojContestMode.tabSwitchCount >= window.dmojContestMode.maxTabSwitches) {
-                console.log('Tab switch limit reached, auto-exiting contest');
-                exitContest('Tab switch limit exceeded (' + window.dmojContestMode.tabSwitchCount + ' switches)');
-                return true;
-            }
             
             // Reset cooldown after appropriate time
             setTimeout(function() {
@@ -671,94 +673,35 @@
         console.log('Detection state initialized:', detectionState);
     }
     
-    // Exit contest function
-    function exitContest(reason) {
+    // Handle contest exit (only for manual exits now)
+    function handleContestExit(reason) {
         if (window.dmojContestMode.hasExitedContest) {
             console.log('Contest exit already in progress, ignoring');
             return;
         }
         
-        console.log('ATTEMPTING TO EXIT CONTEST, reason:', reason);
+        console.log('Contest exit initiated, reason:', reason);
         console.log('Current tab switch count:', window.dmojContestMode.tabSwitchCount);
-        console.log('Stack trace:', new Error().stack);
         
         window.dmojContestMode.hasExitedContest = true;
         
-        // Only clear stored tab switch count if exiting due to tab switch limit
-        if (reason && reason.includes('Tab switch limit exceeded')) {
-            console.log('Clearing stored count due to tab switch limit');
-            clearStoredTabSwitchCount();
-        } else {
-            console.log('NOT clearing stored count - reason does not include tab switch limit');
-        }
+        // Store current count as last total before clearing (for manual exit/contest end)
+        clearStoredTabSwitchCount();
         
-        // Try to submit leave form
-        submitLeaveForm().then(function(success) {
-            if (success) {
-                console.log('Contest leave form submitted successfully');
-            } else {
-                console.log('Leave form submission failed, creating temporary form');
-                // Fallback: create temporary POST form
-                var tempForm = document.createElement('form');
-                tempForm.method = 'POST';
-                tempForm.action = '/contest/' + window.dmojContestMode.contestKey + '/leave';
-                tempForm.style.display = 'none';
-                
-                // Add CSRF token
-                var csrfToken = getCookie('csrftoken');
-                if (csrfToken) {
-                    var csrfInput = document.createElement('input');
-                    csrfInput.type = 'hidden';
-                    csrfInput.name = 'csrfmiddlewaretoken';
-                    csrfInput.value = csrfToken;
-                    tempForm.appendChild(csrfInput);
-                }
-                
-                document.body.appendChild(tempForm);
-                console.log('Submitting temporary form to:', tempForm.action);
-                tempForm.submit();
-            }
-        });
+        console.log('Tab switch count cleared for contest exit');
     }
     
-    // Submit leave form
-    function submitLeaveForm() {
-        return new Promise(function(resolve) {
-            console.log('Attempting to submit leave form');
-            
-            // Try multiple selectors to find the leave form
-            var leaveForm = document.querySelector('form[action*="contest_leave"]') ||
-                           document.querySelector('form[action*="/leave"]') ||
-                           document.querySelector('.contest-join-pseudotab form') ||
-                           document.querySelector('form[action*="' + window.dmojContestMode.contestKey + '/leave"]');
-            
-            if (leaveForm) {
-                console.log('Found leave form, submitting:', leaveForm);
-                
-                // Ensure CSRF token is present
-                var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
-                if (csrfToken && !leaveForm.querySelector('[name=csrfmiddlewaretoken]')) {
-                    var csrfInput = document.createElement('input');
-                    csrfInput.type = 'hidden';
-                    csrfInput.name = 'csrfmiddlewaretoken';
-                    csrfInput.value = csrfToken.value;
-                    leaveForm.appendChild(csrfInput);
-                }
-                
-                // Submit the form
-                try {
-                    leaveForm.submit();
-                    resolve(true);
-                } catch (e) {
-                    console.error('Error submitting leave form:', e);
-                    resolve(false);
-                }
-            } else {
-                console.log('No leave form found on current page');
-                resolve(false);
-            }
-        });
-    }
+    // Global function to get the last total tab switches count
+    window.dmojContestMode.getLastTotalTabSwitches = function() {
+        return window.dmojContestMode.lastTotalTabSwitches;
+    };
+    
+    // Global function to get the current tab switches count
+    window.dmojContestMode.getCurrentTabSwitches = function() {
+        return window.dmojContestMode.tabSwitchCount || 0;
+    };
+    
+
     
     // Initialize when DOM is ready
     function initialize() {
@@ -774,6 +717,18 @@
             console.log('Cleared join flag cookie and old count data');
         }
         
+        // Add listeners for contest end scenarios
+        window.addEventListener('beforeunload', function() {
+            // Check if this is a contest submission or contest end
+            var isSubmission = document.querySelector('form[action*="submit"]') !== null;
+            var isContestPage = window.location.pathname.includes('/contest/');
+            
+            if (isSubmission || !isContestPage) {
+                console.log('Potential contest end scenario detected');
+                // Store current count but don't clear yet (will be handled by server-side logic)
+            }
+        });
+        
         // Load stored tab switch count (will be 0 if we just cleared it above)
         if (window.dmojContestMode.tabSwitchCount === null) {
             window.dmojContestMode.tabSwitchCount = getStoredTabSwitchCount();
@@ -781,6 +736,10 @@
         } else {
             console.log('Tab switch count already loaded:', window.dmojContestMode.tabSwitchCount);
         }
+        
+        // Load stored last total tab switches count
+        window.dmojContestMode.lastTotalTabSwitches = getStoredLastTotalTabSwitches();
+        console.log('Loaded last total tab switches:', window.dmojContestMode.lastTotalTabSwitches);
         
         // Always create tab counter first if we're in a contest (it will show current count)
         if (window.dmojContestMode.inContest) {
@@ -806,23 +765,14 @@
                         e.preventDefault();
                         return false;
                     }
-                    // User confirmed manual exit, clear the stored count
-                    clearStoredTabSwitchCount();
-                    window.dmojContestMode.hasExitedContest = true;
+                    // User confirmed manual exit, handle the exit
+                    handleContestExit('Manual exit by user');
                 });
             });
         }, 1000);
     }
     
-    // Add CSS for pulse animation
-    var style = document.createElement('style');
-    style.textContent = 
-        '@keyframes pulse {' +
-        '0% { opacity: 1; }' +
-        '50% { opacity: 0.5; }' +
-        '100% { opacity: 1; }' +
-        '}';
-    document.head.appendChild(style);
+
     
     // Initialize when DOM is ready
     if (document.readyState === 'loading') {
