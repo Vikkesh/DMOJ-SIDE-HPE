@@ -1,0 +1,918 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block body %}
+<style>
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  body.proctoring-active {
+    overflow: hidden;
+  }
+  
+  /* Hide header and footer in proctoring mode */
+  body.proctoring-active #header,
+  body.proctoring-active #footer,
+  body.proctoring-active .navbar,
+  body.proctoring-active .footer {
+    display: none !important;
+  }
+  
+  /* Make proctoring layout fullscreen */
+  body.proctoring-active #proctoring-layout {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 9999 !important;
+  }
+  #startup-info {
+    max-width: 800px;
+    margin: 50px auto;
+    text-align: center;
+    padding: 50px;
+  }
+  #proctoring-layout {
+    display: flex;
+    flex-direction: row;
+    width: 100vw;
+    height: 100vh;
+    position: fixed;
+    top: 0;
+    left: 0;
+    background: white;
+    z-index: 9999;
+  }
+  
+  /* Overlay to prevent clicking outside iframe */
+  .iframe-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 10000;
+    pointer-events: none;
+    background: transparent;
+  }
+  
+  .iframe-overlay.active {
+    pointer-events: auto;
+  }
+  #dmoj-content-container {
+    flex-grow: 1;
+    height: 100%;
+    position: relative;
+  }
+  #dmoj-contest-frame {
+    width: 100%;
+    height: 100%;
+    border: none;
+    background-color: white;
+  }
+  #proctoring-sidebar {
+    width: 320px;
+    flex-shrink: 0;
+    background-color: #f8f9fa;
+    border-left: 1px solid #dee2e6;
+    transition: all 0.3s ease-in-out;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+  #proctoring-ui {
+    padding: 1em;
+  }
+  #proctoring-sidebar.collapsed {
+    width: 0;
+    padding: 0;
+    border-left: none;
+  }
+  #proctoring-sidebar.collapsed > * {
+    visibility: hidden;
+  }
+  #toggle-sidebar-btn {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    transform: translateY(-50%) translateX(-100%);
+    width: 25px;
+    height: 80px;
+    border: 1px solid #dee2e6;
+    border-right: none;
+    background-color: #f8f9fa;
+    cursor: pointer;
+    font-size: 20px;
+    padding: 0;
+    border-radius: 15px 0 0 15px;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #555;
+  }
+  #proctoring-sidebar.collapsed #toggle-sidebar-btn {
+    visibility: visible;
+    transform: translateY(-50%) translateX(0) scaleX(-1);
+    left: -25px;
+    border-right: 1px solid #dee2e6;
+    border-left: none;
+    border-radius: 0 15px 15px 0;
+  }
+  
+  /* Prevent right-click and selection */
+  body.proctoring-active {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+  
+  body.proctoring-active * {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+</style>
+
+<div
+  id="startup-info"
+  data-contest-url="{{ url('contest_view', contest.key) }}"
+>
+  <h1>{{ title }}</h1>
+  <p>
+    You are about to start a proctoring session for contest:
+    <strong>{{ contest.name }}</strong>.
+  </p>
+  <p>Please click the button below to grant camera access and begin the proctored contest.</p>
+  <button
+    id="startBtn"
+    class="button"
+    style="padding: 15px 30px; font-size: 1.2em"
+  >
+    Start Proctoring Session
+  </button>
+</div>
+
+<div id="proctoring-layout" style="display: none">
+  <div id="dmoj-content-container">
+    <iframe id="dmoj-contest-frame" src="about:blank"></iframe>
+    <div class="iframe-overlay" id="iframe-overlay"></div>
+  </div>
+  <div id="proctoring-sidebar">
+    <button id="toggle-sidebar-btn" title="Toggle Proctoring Panel">‹</button>
+    <div id="proctoring-ui">
+      <h3 style="text-align: center; margin-top: 0; margin-bottom: 15px">
+        Proctoring
+      </h3>
+      <video
+        id="webcam"
+        autoplay
+        muted
+        playsinline
+        style="width: 100%; background: black; border-radius: 5px"
+      ></video>
+      <canvas id="canvas" style="display: none"></canvas>
+      <div
+        id="status"
+        style="margin-top: 10px; font-weight: bold; text-align: center"
+      >
+        Initializing...
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  window.dmojData = {{ dmoj_data|tojson }};
+  window.contestProctoredJoinUrl = "{{ url('contest_proctored_join', contest.key) }}";
+  window.csrfToken = "{{ csrf_token }}";
+</script>
+
+<script>
+  {%- raw -%}
+  // Simple immediate execution to test
+  console.log("[DEBUG] Script loaded - testing immediate execution");
+  
+  // Test button access immediately
+  setTimeout(function() {
+      console.log("[DEBUG] Testing button access after small delay...");
+      const testBtn = document.getElementById("startBtn");
+      console.log("[DEBUG] Button found in timeout:", !!testBtn);
+      if (testBtn) {
+          console.log("[DEBUG] Button text:", testBtn.textContent);
+          
+          // Add click listener that directly starts full proctoring
+          testBtn.onclick = function() {
+              console.log("[DEBUG] Start Proctoring Session button clicked!");
+              
+              // Directly start the full proctoring without dialogs
+              startProctoring();
+          };
+          console.log("[DEBUG] Simple onclick handler attached");
+      }
+  }, 100);
+
+  document.addEventListener("DOMContentLoaded", function () {
+      console.log("[DEBUG] DOM loaded, initializing proctoring system...");
+      
+      // Check if dmojData is available
+      console.log("[DEBUG] dmojData available:", window.dmojData ? "Yes" : "No");
+      
+      // --- UI & Server Configuration ---
+      const API_BASE_URL = "http://127.0.0.1:8001";
+      const startBtn = document.getElementById("startBtn");
+      const startupInfo = document.getElementById("startup-info");
+      const proctoringLayout = document.getElementById("proctoring-layout");
+      const iframe = document.getElementById("dmoj-contest-frame");
+      const sidebar = document.getElementById("proctoring-sidebar");
+      const toggleBtn = document.getElementById("toggle-sidebar-btn");
+      const video = document.getElementById("webcam");
+      const canvas = document.getElementById("canvas");
+      const statusDiv = document.getElementById("status");
+      let contestUrl = null;
+      
+      if (startupInfo) {
+          contestUrl = startupInfo.getAttribute('data-contest-url');
+          console.log("[DEBUG] Contest URL from attribute:", contestUrl);
+      } else {
+          console.error("[DEBUG] startup-info element not found!");
+      }
+
+      console.log("[DEBUG] Button found:", startBtn ? "Yes" : "No");
+      if (!startBtn) {
+          console.error("[DEBUG] ERROR: startBtn element not found in DOM!");
+          console.log("[DEBUG] Available elements with ID starting with 'start':", 
+              Array.from(document.querySelectorAll('[id^="start"]')).map(el => el.id));
+      }
+
+      // --- Proctoring State & Config ---
+      let socket, mediaRecorder;
+      let recordedChunks = [];
+      let isProctoring = false;
+      let isUploading = false;
+      const ANALYSIS_INTERVAL_MS = 500;
+      const ROLLING_BUFFER_SECONDS = 20;
+
+      // Proctoring security functions
+      function enableProctoringLock() {
+          console.log("[DEBUG] Enabling proctoring security lock...");
+          
+          // Block keyboard shortcuts
+          document.addEventListener('keydown', blockKeyboardShortcuts, true);
+          
+          // Block right-click context menu
+          document.addEventListener('contextmenu', blockContextMenu, true);
+          
+          // Block F11 fullscreen toggle
+          document.addEventListener('keydown', blockF11, true);
+          
+          // Prevent navigation away from page
+          window.addEventListener('beforeunload', preventPageExit);
+          
+          // Block Alt+Tab and other window switching
+          document.addEventListener('keydown', blockWindowSwitching, true);
+          
+          // Monitor focus and visibility
+          document.addEventListener('visibilitychange', handleVisibilityChange);
+          window.addEventListener('blur', handleWindowBlur);
+          window.addEventListener('focus', handleWindowFocus);
+          
+          console.log("[DEBUG] Proctoring security measures enabled");
+      }
+      
+      function disableProctoringLock() {
+          console.log("[DEBUG] Disabling proctoring security lock...");
+          
+          // Remove all event listeners
+          document.removeEventListener('keydown', blockKeyboardShortcuts, true);
+          document.removeEventListener('contextmenu', blockContextMenu, true);
+          document.removeEventListener('keydown', blockF11, true);
+          window.removeEventListener('beforeunload', preventPageExit);
+          document.removeEventListener('keydown', blockWindowSwitching, true);
+          document.removeEventListener('visibilitychange', handleVisibilityChange);
+          window.removeEventListener('blur', handleWindowBlur);
+          window.removeEventListener('focus', handleWindowFocus);
+          
+          console.log("[DEBUG] Proctoring security measures disabled");
+      }
+      
+      function blockKeyboardShortcuts(event) {
+          // Block common shortcuts that could be used to escape
+          const blockedKeys = [
+              'F12', // DevTools
+              'F5',  // Refresh
+              'Escape', // Exit fullscreen
+              'Tab'  // Alt+Tab combination
+          ];
+          
+          if (blockedKeys.includes(event.key)) {
+              event.preventDefault();
+              event.stopPropagation();
+              console.log("[DEBUG] Blocked keyboard shortcut:", event.key);
+              return false;
+          }
+          
+          // Block Ctrl combinations
+          if (event.ctrlKey) {
+              const blockedCtrlKeys = ['r', 'R', 'w', 'W', 't', 'T', 'n', 'N', 'shift+I', 'shift+J', 'shift+C', 'u', 'U'];
+              if (blockedCtrlKeys.includes(event.key) || event.shiftKey) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  console.log("[DEBUG] Blocked Ctrl+", event.key);
+                  return false;
+              }
+          }
+          
+          // Block Alt combinations
+          if (event.altKey) {
+              event.preventDefault();
+              event.stopPropagation();
+              console.log("[DEBUG] Blocked Alt combination");
+              return false;
+          }
+      }
+      
+      function blockContextMenu(event) {
+          event.preventDefault();
+          console.log("[DEBUG] Blocked right-click context menu");
+          return false;
+      }
+      
+      function blockF11(event) {
+          if (event.key === 'F11') {
+              event.preventDefault();
+              console.log("[DEBUG] Blocked F11 fullscreen toggle");
+              return false;
+          }
+      }
+      
+      function preventPageExit(event) {
+          event.preventDefault();
+          event.returnValue = '';
+          console.log("[DEBUG] Prevented page exit attempt");
+          return '';
+      }
+      
+      function blockWindowSwitching(event) {
+          if ((event.altKey && event.key === 'Tab') || 
+              (event.metaKey && event.key === 'Tab') ||
+              (event.ctrlKey && event.altKey && event.key === 'Delete')) {
+              event.preventDefault();
+              event.stopPropagation();
+              console.log("[DEBUG] Blocked window switching attempt");
+              return false;
+          }
+      }
+      
+      function handleVisibilityChange() {
+          if (document.hidden && isProctoring) {
+              console.log("[WARNING] Page lost visibility during proctoring session");
+              statusDiv.textContent = 'WARNING: Page visibility lost - this may be flagged';
+          }
+      }
+      
+      function handleWindowBlur() {
+          if (isProctoring) {
+              console.log("[WARNING] Window lost focus during proctoring session");
+              // Immediately refocus the window
+              setTimeout(() => {
+                  window.focus();
+              }, 100);
+          }
+      }
+      
+      function handleWindowFocus() {
+          if (isProctoring) {
+              console.log("[DEBUG] Window regained focus");
+          }
+      }
+
+      // Debug: Check if all elements are found
+      console.log("[DEBUG] All elements found check:");
+      console.log("- startBtn:", !!startBtn, startBtn ? `(text: "${startBtn.textContent}")` : "");
+      console.log("- startupInfo:", !!startupInfo);
+      console.log("- proctoringLayout:", !!proctoringLayout);
+      console.log("- iframe:", !!iframe);
+      console.log("- sidebar:", !!sidebar);
+      console.log("- toggleBtn:", !!toggleBtn);
+      console.log("- video:", !!video);
+      console.log("- canvas:", !!canvas);
+      console.log("- statusDiv:", !!statusDiv);
+      console.log("- contestUrl:", contestUrl);
+
+      // Check camera permissions first
+      async function checkCameraPermissions() {
+          console.log("[DEBUG] Checking camera permissions...");
+          
+          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+              console.error("[DEBUG] getUserMedia not supported");
+              return false;
+          }
+          
+          try {
+              // Check if we can enumerate devices
+              const devices = await navigator.mediaDevices.enumerateDevices();
+              const videoDevices = devices.filter(device => device.kind === 'videoinput');
+              console.log("[DEBUG] Video devices found:", videoDevices.length);
+              
+              if (videoDevices.length === 0) {
+                  console.error("[DEBUG] No video devices found");
+                  return false;
+              }
+              
+              return true;
+          } catch (error) {
+              console.error("[DEBUG] Error checking devices:", error);
+              return false;
+          }
+      }
+
+      // Full proctoring function with all functionality
+      async function startProctoring() {
+          console.log("[DEBUG] Starting full proctoring session and joining contest...");
+          
+          if (!contestUrl) {
+              console.error("[DEBUG] ERROR: Contest URL not available!");
+              alert("Error: Contest URL not found. Cannot start proctoring.");
+              return;
+          }
+          
+          // Check camera availability first
+          const hasCamera = await checkCameraPermissions();
+          if (!hasCamera) {
+              alert("No camera device detected. Please connect a camera and try again.");
+              return;
+          }
+          
+          try {
+              if (isProctoring) {
+                  console.log("[DEBUG] Proctoring already active, ignoring duplicate call");
+                  return;
+              }
+              
+              // First, join the contest via POST request
+              console.log("[DEBUG] Joining contest...");
+              console.log("[DEBUG] Using URL:", window.contestProctoredJoinUrl);
+              const joinResponse = await fetch(window.contestProctoredJoinUrl, {
+                  method: 'POST',
+                  headers: {
+                      'Content-Type': 'application/x-www-form-urlencoded',
+                      'X-CSRFToken': window.csrfToken
+                  },
+                  body: 'csrfmiddlewaretoken=' + encodeURIComponent(window.csrfToken)
+              });
+              
+              console.log("[DEBUG] Join response status:", joinResponse.status);
+              console.log("[DEBUG] Join response headers:", joinResponse.headers);
+              
+              if (!joinResponse.ok) {
+                  console.error("[DEBUG] Failed to join contest:", joinResponse.status);
+                  const errorText = await joinResponse.text();
+                  console.error("[DEBUG] Error response:", errorText);
+                  alert("Failed to join contest. Please try again.");
+                  return;
+              }
+              
+              // Parse the response to get the actual contest URL
+              const joinData = await joinResponse.json();
+              console.log("[DEBUG] Join response data:", joinData);
+              
+              if (joinData.success && joinData.contest_url) {
+                  contestUrl = joinData.contest_url;
+                  console.log("[DEBUG] Updated contest URL from join response:", contestUrl);
+              } else {
+                  console.error("[DEBUG] Invalid join response:", joinData);
+                  alert("Failed to get contest URL. Please try again.");
+                  return;
+              }
+              
+              console.log("[DEBUG] Successfully joined contest, starting camera...");
+              
+              if (!statusDiv) {
+                  console.error("[DEBUG] ERROR: Status div not found!");
+                  return;
+              }
+              
+              statusDiv.textContent = 'Requesting camera access...';
+              console.log("[DEBUG] Requesting user media...");
+              
+              // Check if getUserMedia is available
+              if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                  throw new Error("getUserMedia is not supported in this browser or context. Make sure you're using HTTPS.");
+              }
+              
+              // Check current page protocol
+              console.log("[DEBUG] Current protocol:", window.location.protocol);
+              console.log("[DEBUG] Current host:", window.location.host);
+              
+              // Request permissions step by step for better debugging
+              console.log("[DEBUG] Checking media device permissions...");
+              
+              let stream;
+              try {
+                  // Try video first
+                  console.log("[DEBUG] Requesting video access...");
+                  stream = await navigator.mediaDevices.getUserMedia({ 
+                      video: { 
+                          width: { min: 640, ideal: 1280, max: 1920 },
+                          height: { min: 480, ideal: 720, max: 1080 }
+                      }, 
+                      audio: true 
+                  });
+                  console.log("[DEBUG] User media obtained successfully");
+                  console.log("[DEBUG] Stream tracks:", stream.getTracks().map(track => ({
+                      kind: track.kind,
+                      label: track.label,
+                      enabled: track.enabled,
+                      readyState: track.readyState
+                  })));
+              } catch (mediaError) {
+                  console.error("[DEBUG] Detailed media error:", mediaError);
+                  console.error("[DEBUG] Error name:", mediaError.name);
+                  console.error("[DEBUG] Error message:", mediaError.message);
+                  
+                  // Try without audio as fallback
+                  if (mediaError.name === 'NotAllowedError') {
+                      throw new Error("Camera access was denied. Please click the camera icon in your browser's address bar and allow camera access.");
+                  } else if (mediaError.name === 'NotFoundError') {
+                      throw new Error("No camera found. Please connect a camera and try again.");
+                  } else if (mediaError.name === 'NotSupportedError') {
+                      throw new Error("Camera access is not supported. Please use HTTPS or a supported browser.");
+                  } else {
+                      console.log("[DEBUG] Trying video-only fallback...");
+                      try {
+                          stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                          console.log("[DEBUG] Video-only stream obtained");
+                      } catch (fallbackError) {
+                          console.error("[DEBUG] Video-only fallback also failed:", fallbackError);
+                          throw mediaError; // Re-throw original error
+                      }
+                  }
+              }
+              
+              video.srcObject = stream;
+              
+              // Wait for video to be ready
+              await new Promise((resolve) => {
+                  video.onloadedmetadata = resolve;
+              });
+              
+              await video.play(); // Ensure video starts playing
+
+              isProctoring = true;
+              startBtn.disabled = true;
+              startBtn.textContent = 'Proctoring Active';
+
+              // Setup UI
+              startupInfo.style.display = "none";
+              proctoringLayout.style.display = "flex";
+              document.body.classList.add('proctoring-active');
+              
+              // Enable protective measures
+              enableProctoringLock();
+              
+              // Debug: Make sure proctoring layout is visible
+              console.log("[DEBUG] Proctoring layout display:", proctoringLayout.style.display);
+              console.log("[DEBUG] Proctoring layout dimensions:", `${proctoringLayout.offsetWidth}x${proctoringLayout.offsetHeight}`);
+              
+              // Add temporary background color to see the iframe container
+              const contentContainer = document.getElementById('dmoj-content-container');
+              if (contentContainer) {
+                  console.log("[DEBUG] Content container dimensions:", `${contentContainer.offsetWidth}x${contentContainer.offsetHeight}`);
+                  contentContainer.style.backgroundColor = '#ffeeee'; // Temporary visual indicator
+              }
+              
+              // Load the contest in the iframe
+              console.log(`[DEBUG] About to set iframe src to: ${contestUrl}`);
+              console.log(`[DEBUG] Iframe element:`, iframe);
+              console.log(`[DEBUG] Iframe current src:`, iframe ? iframe.src : 'N/A');
+              
+              if (iframe && contestUrl) {
+                  // Add load event listener BEFORE setting src
+                  iframe.onload = function() {
+                      console.log("[DEBUG] Iframe loaded successfully!");
+                      console.log("[DEBUG] Iframe final src:", iframe.src);
+                      console.log("[DEBUG] Iframe dimensions:", `${iframe.offsetWidth}x${iframe.offsetHeight}`);
+                      console.log("[DEBUG] Iframe visible:", iframe.offsetHeight > 0 && iframe.offsetWidth > 0);
+                      
+                      // Check iframe position
+                      const rect = iframe.getBoundingClientRect();
+                      console.log("[DEBUG] Iframe position:", rect);
+                      
+                      statusDiv.textContent = 'Contest loaded. Proctoring active.';
+                      
+                      // Try to access iframe content (will fail if cross-origin)
+                      setTimeout(() => {
+                          try {
+                              console.log("[DEBUG] Iframe content document:", iframe.contentDocument);
+                              if (iframe.contentDocument) {
+                                  console.log("[DEBUG] Iframe content body:", iframe.contentDocument.body);
+                              }
+                          } catch (e) {
+                              console.log("[DEBUG] Cannot access iframe content (expected for cross-origin):", e.message);
+                          }
+                      }, 1000);
+                  };
+                  
+                  iframe.onerror = function(error) {
+                      console.error("[DEBUG] Iframe failed to load:", error);
+                      statusDiv.textContent = 'Failed to load contest. Check console.';
+                  };
+                  
+                  // Set the source
+                  console.log(`[DEBUG] Setting iframe src to: ${contestUrl}`);
+                  iframe.src = contestUrl;
+                  console.log(`[DEBUG] Iframe src set successfully to: ${iframe.src}`);
+                  
+              } else {
+                  console.error("[DEBUG] Iframe or contestUrl not available!");
+                  console.log("[DEBUG] iframe:", iframe);
+                  console.log("[DEBUG] contestUrl:", contestUrl);
+                  statusDiv.textContent = 'Error: Could not load contest.';
+                  return;
+              }
+
+              // Initialize backend connections for full proctoring
+              try {
+                  initWebSocket();
+                  initMediaRecorder(stream);
+                  setInterval(sendFrameForAnalysis, ANALYSIS_INTERVAL_MS);
+                  console.log("[DEBUG] Proctoring backend initialized successfully");
+              } catch (error) {
+                  console.error("[DEBUG] Error initializing proctoring backend:", error);
+                  console.log("[DEBUG] Continuing proctoring with local security measures only");
+                  statusDiv.textContent = 'Proctoring active (monitoring offline).';
+                  // Continue proctoring even if backend fails - security measures still work
+              }
+              
+          } catch (error) {
+              console.error('[DEBUG] Error starting proctoring:', error);
+              console.error('[DEBUG] Error stack:', error.stack);
+              
+              let errorMessage = 'Could not access camera. ';
+              let alertMessage = 'Could not access camera. ';
+              
+              if (error.message.includes('denied')) {
+                  errorMessage += 'Camera access was denied.';
+                  alertMessage += 'Please click the camera icon in your browser\'s address bar and allow camera access, then try again.';
+              } else if (error.message.includes('HTTPS')) {
+                  errorMessage += 'HTTPS required for camera access.';
+                  alertMessage += 'Camera access requires HTTPS. Please access the site via HTTPS or use localhost.';
+              } else if (error.message.includes('No camera found')) {
+                  errorMessage += 'No camera detected.';
+                  alertMessage += 'Please connect a camera device and try again.';
+              } else if (error.name === 'NotAllowedError') {
+                  errorMessage += 'Permission denied.';
+                  alertMessage += 'Camera permission was denied. Please refresh the page and allow camera access when prompted.';
+              } else if (error.name === 'NotFoundError') {
+                  errorMessage += 'Camera not found.';
+                  alertMessage += 'No camera device was found. Please connect a camera and try again.';
+              } else if (error.name === 'NotSupportedError') {
+                  errorMessage += 'Not supported in this browser.';
+                  alertMessage += 'Camera access is not supported. Please use a modern browser with HTTPS.';
+              } else {
+                  errorMessage += error.message || 'Unknown error occurred.';
+                  alertMessage += 'An error occurred: ' + (error.message || 'Unknown error') + '. Please try again.';
+              }
+              
+              if (statusDiv) {
+                  statusDiv.textContent = errorMessage;
+              }
+              alert(alertMessage);
+          }
+      }
+
+      // --- Event Listeners for UI ---
+      console.log("[DEBUG] Setting up event listeners...");
+      
+      if (startBtn) {
+          console.log("[DEBUG] Adding click listener to start button with ID:", startBtn.id);
+          
+          // Test if button is clickable
+          console.log("[DEBUG] Button properties - disabled:", startBtn.disabled, "style.display:", startBtn.style.display);
+          
+          startBtn.addEventListener("click", function(event) {
+              console.log("[DEBUG] Start button clicked! Event:", event);
+              event.preventDefault(); // Prevent any default behavior
+              
+              if (!isProctoring) {
+                  console.log("[DEBUG] Starting proctoring...");
+                  try {
+                      // Use the full proctoring function
+                      startProctoring();
+                  } catch (error) {
+                      console.error("[DEBUG] Error in startProctoring:", error);
+                  }
+              } else {
+                  console.log("[DEBUG] Proctoring already active");
+              }
+          });
+          
+          console.log("[DEBUG] Start button listener added successfully");
+      } else {
+          console.error("[DEBUG] ERROR: Start button not found! Cannot add event listener.");
+          console.log("[DEBUG] All buttons on page:", Array.from(document.querySelectorAll('button')).map(b => ({ id: b.id, class: b.className, text: b.textContent.trim() })));
+      }
+      
+      if (toggleBtn) {
+          toggleBtn.addEventListener("click", () => {
+              console.log("[DEBUG] Sidebar toggled.");
+              sidebar.classList.toggle("collapsed");
+          });
+      }
+      
+      window.addEventListener("message", (event) => {
+          if (event.origin !== window.location.origin || !event.data) return;
+          
+          if (event.data.proctoringPage) {
+              console.log(`[DEBUG] Iframe navigated to: ${event.data.proctoringPage}`);
+          }
+          
+          if (event.data.proctoringAction === "end_session" || event.data.proctoringAction === "leave_contest") {
+              console.log("[DEBUG] Received leave contest command from iframe - user has successfully left the contest");
+              stopProctoring();
+              
+              // Show confirmation message that they've left the contest and exited proctoring
+              document.body.innerHTML = `
+                  <div style="width:100vw;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#f8f9fa;">
+                      <h1 style="color:#28a745;margin-bottom:20px;">✓ Contest Left Successfully</h1>
+                      <p style="color:#666;margin-bottom:10px;">You have successfully left the contest.</p>
+                      <p style="color:#666;margin-bottom:30px;">Proctoring session has been ended.</p>
+                      <a href="${window.location.origin}/contests/" style="padding:12px 24px;background:#007bff;color:white;text-decoration:none;border-radius:5px;margin-right:10px;">Browse Contests</a>
+                      <a href="${contestUrl}" style="padding:12px 24px;background:#6c757d;color:white;text-decoration:none;border-radius:5px;">View Contest (Without Proctoring)</a>
+                  </div>
+              `;
+              
+              // After 3 seconds, redirect to contests list
+              setTimeout(() => {
+                  window.location.href = window.location.origin + "/contests/";
+              }, 3000);
+          }
+          
+          if (event.data.proctoringAction === "contest_violation") {
+              console.log("[WARNING] Contest violation detected from iframe");
+              statusDiv.textContent = 'VIOLATION: ' + (event.data.message || 'Contest rule violation detected');
+          }
+      });
+
+      // --- Core Proctoring Functions ---
+
+      /**
+       * Initializes the WebSocket connection.
+       */
+      function initWebSocket() {
+          // Test cloud backend connection
+          console.log(`[DEBUG] Testing cloud backend connection to: ${API_BASE_URL}/upload-clip`);
+          
+          const wsUrl = `${API_BASE_URL.replace('http', 'ws')}/ws`;
+          console.log(`[DEBUG] Initializing WebSocket to: ${wsUrl}`);
+          socket = new WebSocket(wsUrl);
+
+          socket.onopen = () => statusDiv.textContent = 'Connected. Proctoring started.';
+          socket.onclose = () => {
+              console.log('[DEBUG] WebSocket connection closed - continuing proctoring without backend monitoring');
+              statusDiv.textContent = 'Proctoring active (monitoring offline).';
+              // Don't stop proctoring - continue with local security measures
+          };
+          socket.onerror = (error) => {
+              console.error('WebSocket error:', error);
+              console.log('[DEBUG] WebSocket error - continuing proctoring without backend monitoring');
+              statusDiv.textContent = 'Proctoring active (monitoring offline).';
+              // Don't stop proctoring - continue with local security measures
+          };
+          socket.onmessage = (event) => {
+              const data = JSON.parse(event.data);
+              console.log('Server response:', data);
+              let violationMessage = 'Pattern detected';
+              if (Array.isArray(data.violations) && data.violations.length > 0) {
+                  violationMessage = data.violations[0]?.message || 'Pattern detected';
+              }
+              statusDiv.textContent = data.is_compliant ? 'Status: Compliant' : `VIOLATION: ${violationMessage}`;
+
+              if (data.trigger_pattern_upload && !isUploading) {
+                  handleViolationUpload();
+              }
+          };
+      }
+
+      /**
+       * Initializes MediaRecorder with rolling buffer.
+       */
+      function initMediaRecorder(stream) {
+          console.log("[DEBUG] Initializing MediaRecorder.");
+          const options = { mimeType: 'video/webm; codecs=vp9' };
+          mediaRecorder = new MediaRecorder(stream, options);
+
+          mediaRecorder.ondataavailable = (event) => {
+              if (event.data.size > 0) {
+                  recordedChunks.push(event.data);
+              }
+              const maxBufferLength = ROLLING_BUFFER_SECONDS + 1;
+              while (recordedChunks.length > maxBufferLength) {
+                  recordedChunks.splice(1, 1);
+              }
+          };
+
+          mediaRecorder.onstop = async () => {
+              console.log(`[DEBUG] MediaRecorder stopped. Buffer has ${recordedChunks.length} chunks.`);
+              if (recordedChunks.length === 0) {
+                  console.warn("[DEBUG] No video chunks recorded, skipping upload.");
+                  isUploading = false;
+                  if (isProctoring) mediaRecorder.start(1000);
+                  return;
+              }
+
+              const clipBlob = new Blob(recordedChunks, { type: 'video/webm' });
+              const formData = new FormData();
+              formData.append('file', clipBlob, `violation_${new Date().toISOString()}.webm`);
+
+              // Send contest data instead of problem data
+              formData.append('dmoj_user_id', window.dmojData.userId);
+              formData.append('dmoj_user_name', window.dmojData.username);
+              formData.append('dmoj_problem_name', 'test_contest'); // Default value as requested
+
+              try {
+                  statusDiv.textContent = 'Uploading evidence...';
+                  const response = await fetch(`${API_BASE_URL}/upload-clip`, {
+                      method: 'POST',
+                      body: formData,
+                      headers: {
+                          'ngrok-skip-browser-warning': 'true'
+                      }
+                  });
+                  if (!response.ok) {
+                      const errorText = await response.text();
+                      throw new Error(`Server responded with ${response.status}: ${errorText}`);
+                  }
+                  const result = await response.json();
+                  console.log('Upload result:', result);
+                  statusDiv.textContent = 'Evidence uploaded. Resuming proctoring.';
+              } catch (error) {
+                  console.error('Error uploading clip:', error);
+                  statusDiv.textContent = 'Failed to upload evidence. See console for details.';
+              } finally {
+                  recordedChunks = [];
+                  isUploading = false;
+                  if (isProctoring) {
+                      mediaRecorder.start(1000);
+                  }
+              }
+          };
+
+          mediaRecorder.start(1000);
+          console.log(`[DEBUG] MediaRecorder started, maintaining a ${ROLLING_BUFFER_SECONDS}s buffer.`);
+      }
+
+      /**
+      * Handles violation upload trigger.
+      */
+      function handleViolationUpload() {
+          if (!mediaRecorder || mediaRecorder.state !== 'recording' || isUploading) return;
+          isUploading = true;
+          console.log('Pattern violation detected. Uploading existing buffer.');
+          statusDiv.textContent = 'Violation detected. Uploading evidence...';
+          mediaRecorder.stop();
+      }
+
+      function sendFrameForAnalysis() {
+          if (socket && socket.readyState === WebSocket.OPEN && video.videoWidth > 0 && video.videoHeight > 0) {
+              canvas.width = video.videoWidth;
+              canvas.height = video.videoHeight;
+              canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+              socket.send(canvas.toDataURL('image/jpeg', 0.5).split(',')[1]);
+          } else if (isProctoring) {
+              // Backend is offline but proctoring continues with local security measures
+              console.log("[DEBUG] Backend offline - proctoring continues with security lockdown only");
+          }
+      }
+
+      function stopProctoring() {
+          if (!isProctoring) return;
+          console.log("[DEBUG] Stopping proctoring session and cleaning up resources.");
+          isProctoring = false;
+
+          // Disable proctoring lock
+          disableProctoringLock();
+
+          // Clear all intervals and stop all media
+          for (let i = 1; i < 99999; i++) window.clearInterval(i);
+          if (socket) socket.close();
+          if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
+          if (video.srcObject) video.srcObject.getTracks().forEach(track => track.stop());
+
+          // Remove proctoring class and restore normal UI
+          document.body.classList.remove('proctoring-active');
+          proctoringLayout.style.display = "none";
+          startupInfo.style.display = "block";
+
+          startBtn.disabled = false;
+          startBtn.textContent = 'Start Proctoring Session';
+      }
+  });
+  {%- endraw -%}
+</script>
+{% endblock %}

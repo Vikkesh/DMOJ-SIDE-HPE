@@ -69,6 +69,16 @@
 {% endblock %}
 
 {% block body %}
+    <script>
+        // If this page is loaded inside an iframe, notify the parent.
+        if (window.parent !== window) {
+            // Notify the parent wrapper that this page has loaded.
+            window.parent.postMessage(
+                { proctoringPage: "submission_status" },
+                window.location.origin
+            );
+        }
+    </script>
     <br>
     <div><a href="{{ url('submission_source', submission.id) }}">{{ _('View source') }}</a></div>
     {% if request.user == submission.user.user or perms.judge.resubmit_other %}

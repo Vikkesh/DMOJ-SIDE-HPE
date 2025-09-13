@@ -46,7 +46,7 @@ from judge.utils.views import DiggPaginatorMixin, QueryStringSortMixin, SingleOb
 __all__ = ['ContestList', 'ContestDetail', 'ContestRanking', 'ContestJoin', 'ContestLeave', 'ContestCalendar',
            'ContestClone', 'ContestStats', 'ContestMossView', 'ContestMossDelete', 'contest_ranking_ajax',
            'ContestParticipationList', 'ContestParticipationDisqualify', 'get_contest_ranking_list',
-           'base_contest_ranking_list']
+           'base_contest_ranking_list', 'ContestProctoredJoin']
 
 
 def _find_contest(request, key, private_check=True):
@@ -310,6 +310,7 @@ class ContestDetail(ContestMixin, TitleMixin, CommentedDetailView):
         )
         context['enable_comments'] = settings.DMOJ_ENABLE_COMMENTS
         context['enable_social'] = settings.DMOJ_ENABLE_SOCIAL
+        context['DEBUG'] = settings.DEBUG  # For testing features
         return context
 
 
@@ -373,12 +374,47 @@ class ContestJoin(LoginRequiredMixin, ContestMixin, SingleObjectMixin, View):
     def post(self, request, *args, **kwargs):
         self.object = self.get_object()
         try:
+            # Check if this is a proctored join request
+            if request.POST.get('start_proctoring'):
+                return self.join_contest_with_proctoring(request)
             return self.join_contest(request)
         except ContestAccessDenied:
             if request.POST.get('access_code'):
                 return self.ask_for_access_code(ContestAccessCodeForm(request.POST))
             else:
                 return HttpResponseRedirect(request.path)
+
+    def join_contest_with_proctoring(self, request, access_code=None):
+        """Handle contest join with proctoring confirmation"""
+        contest = self.object
+
+        if not contest.started and not (self.is_editor or self.is_tester):
+            return generic_message(request, _('Contest not ongoing'),
+                                   _('"%s" is not currently ongoing.') % contest.name)
+
+        profile = request.profile
+
+        if not request.user.is_superuser and contest.banned_users.filter(id=profile.id).exists():
+            return generic_message(request, _('Banned from joining'),
+                                   _('You have been declared persona non grata for this contest. '
+                                     'You are permanently barred from joining this contest.'))
+
+        # Check if user has exited this contest before and cannot rejoin (skip in DEBUG mode for testing)
+        if not settings.DEBUG and ContestParticipation.objects.filter(contest=contest, user=profile, has_exited=True).exists():
+            return generic_message(request, _('Cannot rejoin contest'),
+                                   _('You have previously exited this contest and cannot rejoin.'))
+
+        # Show proctoring confirmation page
+        return render(request, 'contest/contest_proctor_wrapper.html', {
+            'contest': contest,
+            'title': _('Start Proctored Contest: %(contest)s') % {'contest': contest.name},
+            'dmoj_data': {
+                'userId': profile.id,
+                'username': profile.user.username,
+                'contestKey': contest.key,
+                'contestName': contest.name,
+            },
+        })
 
     def join_contest(self, request, access_code=None):
         contest = self.object
@@ -394,8 +430,8 @@ class ContestJoin(LoginRequiredMixin, ContestMixin, SingleObjectMixin, View):
                                    _('You have been declared persona non grata for this contest. '
                                      'You are permanently barred from joining this contest.'))
 
-        # Check if user has exited this contest before and cannot rejoin
-        if ContestParticipation.objects.filter(contest=contest, user=profile, has_exited=True).exists():
+        # Check if user has exited this contest before and cannot rejoin (skip in DEBUG mode for testing)
+        if not settings.DEBUG and ContestParticipation.objects.filter(contest=contest, user=profile, has_exited=True).exists():
             return generic_message(request, _('Cannot rejoin contest'),
                                    _('You have previously exited this contest and cannot rejoin.'))
 
@@ -467,6 +503,153 @@ class ContestJoin(LoginRequiredMixin, ContestMixin, SingleObjectMixin, View):
             'form': form, 'wrong_code': wrong_code,
             'title': _('Enter access code for "%s"') % contest.name,
         })
+
+
+class ContestProctoredJoin(LoginRequiredMixin, ContestMixin, SingleObjectMixin, View):
+    """View for proctored contest joining"""
+    
+    def get(self, request, *args, **kwargs):
+        """Show proctoring confirmation page"""
+        contest = self.get_object()
+        
+        # Basic access checks
+        if not contest.started and not (self.is_editor or self.is_tester):
+            return generic_message(request, _('Contest not ongoing'),
+                                   _('"%s" is not currently ongoing.') % contest.name)
+
+        profile = request.profile
+        if not request.user.is_superuser and contest.banned_users.filter(id=profile.id).exists():
+            return generic_message(request, _('Banned from joining'),
+                                   _('You have been declared persona non grata for this contest. '
+                                     'You are permanently barred from joining this contest.'))
+
+        # Check if user has exited this contest before and cannot rejoin (skip in DEBUG mode for testing)
+        if not settings.DEBUG and ContestParticipation.objects.filter(contest=contest, user=profile, has_exited=True).exists():
+            return generic_message(request, _('Cannot rejoin contest'),
+                                   _('You have previously exited this contest and cannot rejoin.'))
+
+        return render(request, 'contest/contest_proctor_wrapper.html', {
+            'contest': contest,
+            'title': _('Start Proctored Contest: %(contest)s') % {'contest': contest.name},
+            'dmoj_data': {
+                'userId': profile.id,
+                'username': profile.user.username,
+                'contestKey': contest.key,
+                'contestName': contest.name,
+            },
+        })
+
+    def post(self, request, *args, **kwargs):
+        """Handle the actual contest join after proctoring confirmation"""
+        self.object = self.get_object()
+        
+        # Perform the actual contest join logic
+        return self.join_contest(request)
+    
+    def join_contest(self, request, access_code=None):
+        """Same logic as ContestJoin.join_contest but redirects to contest in iframe mode"""
+        contest = self.object
+
+        if not contest.started and not (self.is_editor or self.is_tester):
+            return HttpResponse(
+                json.dumps({
+                    'success': False,
+                    'error': _('Contest not ongoing'),
+                    'message': _('"%s" is not currently ongoing.') % contest.name
+                }),
+                content_type='application/json',
+                status=403
+            )
+
+        profile = request.profile
+
+        if not request.user.is_superuser and contest.banned_users.filter(id=profile.id).exists():
+            return HttpResponse(
+                json.dumps({
+                    'success': False,
+                    'error': _('Banned from joining'),
+                    'message': _('You have been declared persona non grata for this contest. '
+                               'You are permanently barred from joining this contest.')
+                }),
+                content_type='application/json',
+                status=403
+            )
+
+        # Check if user has exited this contest before and cannot rejoin (skip in DEBUG mode for testing)
+        if not settings.DEBUG and ContestParticipation.objects.filter(contest=contest, user=profile, has_exited=True).exists():
+            return HttpResponse(
+                json.dumps({
+                    'success': False,
+                    'error': _('Cannot rejoin contest'),
+                    'message': _('You have previously exited this contest and cannot rejoin.')
+                }),
+                content_type='application/json',
+                status=403
+            )
+
+        requires_access_code = (not self.can_edit and contest.access_code and access_code != contest.access_code)
+        if contest.ended:
+            if requires_access_code:
+                raise ContestAccessDenied()
+
+            while True:
+                virtual_id = max((ContestParticipation.objects.filter(contest=contest, user=profile)
+                                  .aggregate(virtual_id=Max('virtual'))['virtual_id'] or 0) + 1, 1)
+                try:
+                    participation = ContestParticipation.objects.create(
+                        contest=contest, user=profile, virtual=virtual_id,
+                        real_start=timezone.now(),
+                    )
+                # There is obviously a race condition here, so we keep trying until we win the race.
+                except IntegrityError:
+                    pass
+                else:
+                    break
+        else:
+            SPECTATE = ContestParticipation.SPECTATE
+            LIVE = ContestParticipation.LIVE
+
+            if contest.is_live_joinable_by(request.user):
+                participation_type = LIVE
+            elif contest.is_spectatable_by(request.user):
+                participation_type = SPECTATE
+            else:
+                return generic_message(request, _('Cannot enter'),
+                                       _('You are not able to join this contest.'))
+            try:
+                participation = ContestParticipation.objects.get(
+                    contest=contest, user=profile, virtual=participation_type,
+                )
+            except ContestParticipation.DoesNotExist:
+                if requires_access_code:
+                    raise ContestAccessDenied()
+
+                participation = ContestParticipation.objects.create(
+                    contest=contest, user=profile, virtual=participation_type,
+                    real_start=timezone.now(),
+                )
+            else:
+                if participation.ended:
+                    participation = ContestParticipation.objects.get_or_create(
+                        contest=contest, user=profile, virtual=SPECTATE,
+                        defaults={'real_start': timezone.now()},
+                    )[0]
+
+        profile.current_contest = participation
+        profile.save()
+        contest._updating_stats_only = True
+        contest.update_user_count()
+        
+        # Return JSON response with contest URL instead of redirect
+        contest_url = reverse('contest_view', args=(contest.key,))
+        return HttpResponse(
+            json.dumps({
+                'success': True,
+                'contest_url': contest_url,
+                'message': 'Successfully joined contest'
+            }),
+            content_type='application/json'
+        )
 
 
 class ContestLeave(LoginRequiredMixin, ContestMixin, SingleObjectMixin, View):
