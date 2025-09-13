@@ -182,6 +182,13 @@
       >
         Initializing...
       </div>
+      <div
+        id="tab-switch-counter"
+        style="margin-top: 15px; padding: 10px; background-color: #e9ecef; border-radius: 5px; text-align: center; border: 1px solid #ced4da;"
+      >
+        <div style="font-weight: bold; color: #495057;">Tab Switches: <span id="tab-count">0</span></div>
+        <div style="font-size: 12px; color: #6c757d; margin-top: 2px;">Monitoring Active</div>
+      </div>
     </div>
   </div>
 </div>
@@ -575,6 +582,11 @@
               // Enable protective measures
               enableProctoringLock();
               
+              // Initialize tab switch counter display
+              tabSwitchCount = 0;
+              updateTabSwitchDisplay();
+              console.log("[DEBUG] Tab switch counter initialized");
+              
               // Debug: Make sure proctoring layout is visible
               console.log("[DEBUG] Proctoring layout display:", proctoringLayout.style.display);
               console.log("[DEBUG] Proctoring layout dimensions:", `${proctoringLayout.offsetWidth}x${proctoringLayout.offsetHeight}`);
@@ -759,6 +771,89 @@
           }
       });
 
+      // --- Tab Switching Detection for Proctoring ---
+      let tabSwitchCount = 0;
+      let lastBlurTime = 0;
+      let lastFocusTime = Date.now();
+      let isWindowFocused = true;
+      let switchCooldownActive = false;
+      
+      function updateTabSwitchDisplay() {
+          const tabCountElement = document.getElementById('tab-count');
+          if (tabCountElement) {
+              tabCountElement.textContent = tabSwitchCount;
+          }
+      }
+      
+      function incrementTabSwitchCount(reason) {
+          if (!isProctoring) return;
+          
+          const now = Date.now();
+          const timeSinceLastSwitch = now - lastFocusTime;
+          
+          // Prevent duplicate counting within 2 seconds
+          if (switchCooldownActive || timeSinceLastSwitch < 2000) {
+              console.log("[DEBUG] Tab switch ignored - cooldown active or too recent");
+              return;
+          }
+          
+          tabSwitchCount++;
+          switchCooldownActive = true;
+          
+          console.log(`[DEBUG] Tab switch detected (${reason}) - count now: ${tabSwitchCount}`);
+          updateTabSwitchDisplay();
+          
+          // Reset cooldown after 2 seconds
+          setTimeout(() => {
+              switchCooldownActive = false;
+          }, 2000);
+          
+          // Update status to show violation
+          if (statusDiv) {
+              statusDiv.textContent = `WARNING: Tab switches detected: ${tabSwitchCount}`;
+          }
+      }
+      
+      // Window focus/blur detection
+      window.addEventListener('blur', function(e) {
+          if (!isProctoring) return;
+          
+          lastBlurTime = Date.now();
+          isWindowFocused = false;
+          console.log("[DEBUG] Window lost focus - potential tab switch");
+      });
+      
+      window.addEventListener('focus', function(e) {
+          if (!isProctoring) return;
+          
+          const now = Date.now();
+          const blurDuration = lastBlurTime > 0 ? now - lastBlurTime : 0;
+          
+          lastFocusTime = now;
+          
+          // If window was blurred for more than 500ms, count as tab switch
+          if (!isWindowFocused && blurDuration > 500) {
+              incrementTabSwitchCount(`focus regained after ${blurDuration}ms`);
+          }
+          
+          isWindowFocused = true;
+          console.log("[DEBUG] Window regained focus");
+      });
+      
+      // Visibility change detection (backup method)
+      document.addEventListener('visibilitychange', function() {
+          if (!isProctoring) return;
+          
+          if (document.hidden) {
+              console.log("[DEBUG] Page became hidden - potential tab switch");
+          } else {
+              console.log("[DEBUG] Page became visible");
+              if (!isWindowFocused) {
+                  incrementTabSwitchCount('visibility change');
+              }
+          }
+      });
+
       // --- Core Proctoring Functions ---
 
       /**
@@ -897,6 +992,11 @@
 
           // Disable proctoring lock
           disableProctoringLock();
+          
+          // Reset tab switch counter
+          tabSwitchCount = 0;
+          updateTabSwitchDisplay();
+          console.log("[DEBUG] Tab switch counter reset");
 
           // Clear all intervals and stop all media
           for (let i = 1; i < 99999; i++) window.clearInterval(i);
