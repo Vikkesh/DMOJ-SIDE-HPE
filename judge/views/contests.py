@@ -274,6 +274,12 @@ class ContestDetail(ContestMixin, TitleMixin, CommentedDetailView):
 
     def get_context_data(self, **kwargs):
         context = super(ContestDetail, self).get_context_data(**kwargs)
+        # Check if the logged-in user is one of the authors
+        context['is_author'] = (
+            self.request.user.is_authenticated and
+            self.object.authors.filter(id=self.request.user.id).exists()
+        )
+
         context['contest_problems'] = Problem.objects.filter(contests__contest=self.object) \
             .order_by('contests__order').defer('description') \
             .annotate(has_public_editorial=Case(

@@ -104,6 +104,11 @@ def find_free_port(start_port=3001, max_port=3100, used_ports=set()):
 
 def download_problem_submissions(request, contest_key):
     contest = Contest.objects.get(key=contest_key)
+
+    #THIS PREVENTS ANYONE FROM DIRECTLY TYPING IN URL TO download_problem_submission on the net
+    if not request.user.is_authenticated or not contest.authors.filter(id=request.user.id).exists():
+        return HttpResponseForbidden("You are not allowed to access this resource.")
+
     problems = contest.problems.all()
     base_dir = "/home/sukhraj/submissions"  # or any path you want
     os.makedirs(base_dir, exist_ok=True)
@@ -266,6 +271,11 @@ def read_similarity_matrix(contest_key):
 #NOW SHOW THE TABLE
 
 def show_similarity_table(request, contest_key):
+    contest = Contest.objects.get(key=contest_key)
+    #prevents any random user from accessing it by directly typing in the URL
+    if not request.user.is_authenticated or not contest.authors.filter(id=request.user.id).exists():
+        return HttpResponseForbidden("You are not allowed to access this resource.")
+
     headers, rows = read_similarity_matrix(contest_key)
     return render(request, 'contest/show_similarity_table.html', {
         'headers': headers,
