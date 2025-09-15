@@ -31,6 +31,7 @@ from reversion import revisions
 
 from judge import event_poster as event
 from judge.comments import CommentedDetailView
+from judge.debug import get_contest_rejoin_debug, get_contest_template_debug
 from judge.forms import ContestCloneForm
 from judge.models import Contest, ContestMoss, ContestParticipation, ContestProblem, ContestTag, \
     Problem, Profile, Submission
@@ -310,7 +311,8 @@ class ContestDetail(ContestMixin, TitleMixin, CommentedDetailView):
         )
         context['enable_comments'] = settings.DMOJ_ENABLE_COMMENTS
         context['enable_social'] = settings.DMOJ_ENABLE_SOCIAL
-        context['DEBUG'] = settings.DEBUG  # For testing features
+        # Use centralized debug configuration
+        context['debug'] = get_contest_template_debug()
         return context
 
 
@@ -399,8 +401,8 @@ class ContestJoin(LoginRequiredMixin, ContestMixin, SingleObjectMixin, View):
                                    _('You have been declared persona non grata for this contest. '
                                      'You are permanently barred from joining this contest.'))
 
-        # Check if user has exited this contest before and cannot rejoin (skip in DEBUG mode for testing)
-        if not settings.DEBUG and ContestParticipation.objects.filter(contest=contest, user=profile, has_exited=True).exists():
+        # Check if user has exited this contest before and cannot rejoin (skip in debug mode for testing)
+        if not get_contest_rejoin_debug() and ContestParticipation.objects.filter(contest=contest, user=profile, has_exited=True).exists():
             return generic_message(request, _('Cannot rejoin contest'),
                                    _('You have previously exited this contest and cannot rejoin.'))
 
@@ -430,8 +432,8 @@ class ContestJoin(LoginRequiredMixin, ContestMixin, SingleObjectMixin, View):
                                    _('You have been declared persona non grata for this contest. '
                                      'You are permanently barred from joining this contest.'))
 
-        # Check if user has exited this contest before and cannot rejoin (skip in DEBUG mode for testing)
-        if not settings.DEBUG and ContestParticipation.objects.filter(contest=contest, user=profile, has_exited=True).exists():
+        # Check if user has exited this contest before and cannot rejoin (skip in debug mode for testing)
+        if not get_contest_rejoin_debug() and ContestParticipation.objects.filter(contest=contest, user=profile, has_exited=True).exists():
             return generic_message(request, _('Cannot rejoin contest'),
                                    _('You have previously exited this contest and cannot rejoin.'))
 
@@ -523,8 +525,8 @@ class ContestProctoredJoin(LoginRequiredMixin, ContestMixin, SingleObjectMixin, 
                                    _('You have been declared persona non grata for this contest. '
                                      'You are permanently barred from joining this contest.'))
 
-        # Check if user has exited this contest before and cannot rejoin (skip in DEBUG mode for testing)
-        if not settings.DEBUG and ContestParticipation.objects.filter(contest=contest, user=profile, has_exited=True).exists():
+        # Check if user has exited this contest before and cannot rejoin (skip in debug mode for testing)
+        if not get_contest_rejoin_debug() and ContestParticipation.objects.filter(contest=contest, user=profile, has_exited=True).exists():
             return generic_message(request, _('Cannot rejoin contest'),
                                    _('You have previously exited this contest and cannot rejoin.'))
 
@@ -575,8 +577,8 @@ class ContestProctoredJoin(LoginRequiredMixin, ContestMixin, SingleObjectMixin, 
                 status=403
             )
 
-        # Check if user has exited this contest before and cannot rejoin (skip in DEBUG mode for testing)
-        if not settings.DEBUG and ContestParticipation.objects.filter(contest=contest, user=profile, has_exited=True).exists():
+        # Check if user has exited this contest before and cannot rejoin (skip in debug mode for testing)
+        if not get_contest_rejoin_debug() and ContestParticipation.objects.filter(contest=contest, user=profile, has_exited=True).exists():
             return HttpResponse(
                 json.dumps({
                     'success': False,
