@@ -29,10 +29,86 @@
     z-index: 9999 !important;
   }
   #startup-info {
-    max-width: 800px;
+    max-width: 900px;
     margin: 50px auto;
-    text-align: center;
-    padding: 50px;
+    padding: 40px;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+  }
+
+  .step-container {
+    margin: 20px 0;
+    padding: 25px;
+    border-radius: 8px;
+    border: 2px solid;
+    transition: all 0.3s ease;
+    text-align: left;
+  }
+
+  .step-active {
+    border-color: #2196f3;
+    background: #e3f2fd;
+  }
+
+  .step-completed {
+    border-color: #4caf50;
+    background: #e8f5e8;
+  }
+
+  .step-inactive {
+    border-color: #ddd;
+    background: #f9f9f9;
+    opacity: 0.6;
+  }
+
+  .step-title {
+    margin: 0 0 15px 0;
+    font-size: 1.3em;
+    font-weight: 600;
+  }
+
+  .step-description {
+    margin: 0 0 15px 0;
+    color: #666;
+    line-height: 1.5;
+  }
+
+  .step-button {
+    padding: 12px 25px;
+    font-size: 1.1em;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 500;
+  }
+
+  .step-button:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  }
+
+  .step-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+
+  .btn-primary {
+    background: #2196f3;
+    color: white;
+  }
+
+  .btn-success {
+    background: #4caf50;
+    color: white;
+  }
+
+  .btn-completed {
+    background: #4caf50;
+    color: white;
   }
   #proctoring-layout {
     display: flex;
@@ -147,14 +223,39 @@
     You are about to start a proctoring session for contest:
     <strong>{{ contest.name }}</strong>.
   </p>
-  <p>Please click the button below to grant camera access and begin the proctored contest.</p>
-  <button
-    id="startBtn"
-    class="button"
-    style="padding: 15px 30px; font-size: 1.2em"
-  >
-    Start Proctoring Session
-  </button>
+  
+  <!-- Step 1: Fullscreen Mode -->
+  <div id="fullscreen-step" class="step-container step-active">
+    <h3 class="step-title">Step 1: Enable Fullscreen Mode</h3>
+    <p class="step-description">
+      For security, this contest requires fullscreen mode. You cannot exit fullscreen during the contest.
+    </p>
+    <button id="fullscreenBtn" class="step-button btn-primary">
+      Enter Fullscreen Mode
+    </button>
+  </div>
+  
+  <!-- Step 2: Camera Access -->
+  <div id="camera-step" class="step-container step-inactive">
+    <h3 class="step-title">Step 2: Enable Camera Access</h3>
+    <p class="step-description">
+      Camera monitoring is required for proctoring. Please allow camera access when prompted.
+    </p>
+    <button id="cameraBtn" class="step-button btn-primary" disabled>
+      Enable Camera
+    </button>
+  </div>
+
+  <!-- Step 3: Start Contest -->
+  <div id="contest-step" class="step-container step-inactive">
+    <h3 class="step-title">Step 3: Start Proctored Contest</h3>
+    <p class="step-description">
+      All systems ready. Click below to begin your proctored contest session.
+    </p>
+    <button id="startBtn" class="step-button btn-success" disabled>
+      🎯 Start Proctored Contest
+    </button>
+  </div>
 </div>
 
 <div id="proctoring-layout" style="display: none">
@@ -232,6 +333,8 @@
       // --- UI & Server Configuration ---
       const API_BASE_URL = "http://127.0.0.1:8001";
       const startBtn = document.getElementById("startBtn");
+      const fullscreenBtn = document.getElementById("fullscreenBtn");
+      const cameraBtn = document.getElementById("cameraBtn");
       const startupInfo = document.getElementById("startup-info");
       const proctoringLayout = document.getElementById("proctoring-layout");
       const iframe = document.getElementById("dmoj-contest-frame");
@@ -241,6 +344,13 @@
       const canvas = document.getElementById("canvas");
       const statusDiv = document.getElementById("status");
       let contestUrl = null;
+      
+      // Step elements
+      const steps = {
+          fullscreen: document.getElementById('fullscreen-step'),
+          camera: document.getElementById('camera-step'),
+          contest: document.getElementById('contest-step')
+      };
       
       if (startupInfo) {
           contestUrl = startupInfo.getAttribute('data-contest-url');
@@ -261,6 +371,9 @@
       let recordedChunks = [];
       let isProctoring = false;
       let isUploading = false;
+      let isFullscreenEnabled = false;
+      let isCameraEnabled = false;
+      let mediaStream = null;
       const ANALYSIS_INTERVAL_MS = 500;
       const ROLLING_BUFFER_SECONDS = 20;
 
@@ -288,6 +401,12 @@
           window.addEventListener('blur', handleWindowBlur);
           window.addEventListener('focus', handleWindowFocus);
           
+          // Monitor fullscreen changes
+          document.addEventListener('fullscreenchange', handleFullscreenChange);
+          document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+          document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+          document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+          
           console.log("[DEBUG] Proctoring security measures enabled");
       }
       
@@ -303,6 +422,12 @@
           document.removeEventListener('visibilitychange', handleVisibilityChange);
           window.removeEventListener('blur', handleWindowBlur);
           window.removeEventListener('focus', handleWindowFocus);
+          
+          // Remove fullscreen monitoring
+          document.removeEventListener('fullscreenchange', handleFullscreenChange);
+          document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+          document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+          document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
           
           console.log("[DEBUG] Proctoring security measures disabled");
       }
@@ -397,10 +522,31 @@
               console.log("[DEBUG] Window regained focus");
           }
       }
+      
+      function handleFullscreenChange() {
+          if (!isProctoring) return;
+          
+          if (!isFullscreen()) {
+              console.log("[WARNING] Fullscreen exited during proctoring session");
+              if (statusDiv) {
+                  statusDiv.textContent = 'WARNING: Fullscreen exit detected - this violation has been logged';
+              }
+              
+              // Try to re-enter fullscreen automatically
+              setTimeout(() => {
+                  requestFullscreen().catch(error => {
+                      console.error("[DEBUG] Failed to re-enter fullscreen:", error);
+                      statusDiv.textContent = 'CRITICAL: Unable to maintain fullscreen mode';
+                  });
+              }, 1000);
+          }
+      }
 
       // Debug: Check if all elements are found
       console.log("[DEBUG] All elements found check:");
       console.log("- startBtn:", !!startBtn, startBtn ? `(text: "${startBtn.textContent}")` : "");
+      console.log("- fullscreenBtn:", !!fullscreenBtn);
+      console.log("- cameraBtn:", !!cameraBtn);
       console.log("- startupInfo:", !!startupInfo);
       console.log("- proctoringLayout:", !!proctoringLayout);
       console.log("- iframe:", !!iframe);
@@ -410,6 +556,93 @@
       console.log("- canvas:", !!canvas);
       console.log("- statusDiv:", !!statusDiv);
       console.log("- contestUrl:", contestUrl);
+
+      // Step management functions
+      function setStepState(stepElement, state) {
+          stepElement.classList.remove('step-active', 'step-completed', 'step-inactive');
+          stepElement.classList.add(`step-${state}`);
+      }
+
+      function enableNextStep(currentStep, nextStep, nextButton) {
+          setStepState(currentStep, 'completed');
+          if (nextStep) {
+              setStepState(nextStep, 'active');
+              if (nextButton) {
+                  nextButton.disabled = false;
+              }
+          }
+      }
+
+      // Fullscreen management
+      function requestFullscreen() {
+          const element = document.documentElement;
+          
+          if (element.requestFullscreen) {
+              return element.requestFullscreen();
+          } else if (element.webkitRequestFullscreen) {
+              return element.webkitRequestFullscreen();
+          } else if (element.mozRequestFullScreen) {
+              return element.mozRequestFullScreen();
+          } else if (element.msRequestFullscreen) {
+              return element.msRequestFullscreen();
+          }
+          
+          return Promise.reject(new Error('Fullscreen not supported'));
+      }
+
+      function isFullscreen() {
+          return !!(document.fullscreenElement || 
+                   document.webkitFullscreenElement || 
+                   document.mozFullScreenElement || 
+                   document.msFullscreenElement);
+      }
+
+      // Enhanced camera initialization
+      async function initializeCamera() {
+          try {
+              console.log("[DEBUG] Requesting camera access...");
+              
+              if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                  throw new Error("getUserMedia is not supported in this browser or context. Make sure you're using HTTPS.");
+              }
+              
+              mediaStream = await navigator.mediaDevices.getUserMedia({
+                  video: {
+                      width: { min: 640, ideal: 1280, max: 1920 },
+                      height: { min: 480, ideal: 720, max: 1080 }
+                  },
+                  audio: true
+              });
+              
+              video.srcObject = mediaStream;
+              
+              return new Promise((resolve) => {
+                  video.onloadedmetadata = () => {
+                      video.play().then(() => {
+                          console.log("[DEBUG] Camera initialized successfully");
+                          resolve(true);
+                      });
+                  };
+              });
+              
+          } catch (error) {
+              console.error('[DEBUG] Camera initialization failed:', error);
+              
+              let userMessage = 'Camera access failed. ';
+              if (error.name === 'NotAllowedError') {
+                  userMessage += 'Please click the camera icon in your browser and allow camera access.';
+              } else if (error.name === 'NotFoundError') {
+                  userMessage += 'No camera device found. Please connect a camera.';
+              } else if (error.name === 'NotSupportedError') {
+                  userMessage += 'Camera access is not supported. Please use HTTPS or a supported browser.';
+              } else {
+                  userMessage += 'Please check your camera permissions and try again.';
+              }
+              
+              alert(userMessage);
+              throw error;
+          }
+      }
 
       // Check camera permissions first
       async function checkCameraPermissions() {
@@ -497,78 +730,34 @@
                   return;
               }
               
-              console.log("[DEBUG] Successfully joined contest, starting camera...");
+              console.log("[DEBUG] Successfully joined contest, using existing camera stream...");
               
               if (!statusDiv) {
                   console.error("[DEBUG] ERROR: Status div not found!");
                   return;
               }
               
-              statusDiv.textContent = 'Requesting camera access...';
-              console.log("[DEBUG] Requesting user media...");
-              
-              // Check if getUserMedia is available
-              if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                  throw new Error("getUserMedia is not supported in this browser or context. Make sure you're using HTTPS.");
+              // Use the existing media stream from camera initialization
+              if (!mediaStream) {
+                  throw new Error("Camera stream not available. Please enable camera first.");
               }
               
-              // Check current page protocol
-              console.log("[DEBUG] Current protocol:", window.location.protocol);
-              console.log("[DEBUG] Current host:", window.location.host);
+              console.log("[DEBUG] Using existing camera stream");
+              console.log("[DEBUG] Stream tracks:", mediaStream.getTracks().map(track => ({
+                  kind: track.kind,
+                  label: track.label,
+                  enabled: track.enabled,
+                  readyState: track.readyState
+              })));
               
-              // Request permissions step by step for better debugging
-              console.log("[DEBUG] Checking media device permissions...");
-              
-              let stream;
-              try {
-                  // Try video first
-                  console.log("[DEBUG] Requesting video access...");
-                  stream = await navigator.mediaDevices.getUserMedia({ 
-                      video: { 
-                          width: { min: 640, ideal: 1280, max: 1920 },
-                          height: { min: 480, ideal: 720, max: 1080 }
-                      }, 
-                      audio: true 
+              // Ensure video is still playing
+              if (video.srcObject !== mediaStream) {
+                  video.srcObject = mediaStream;
+                  await new Promise((resolve) => {
+                      video.onloadedmetadata = resolve;
                   });
-                  console.log("[DEBUG] User media obtained successfully");
-                  console.log("[DEBUG] Stream tracks:", stream.getTracks().map(track => ({
-                      kind: track.kind,
-                      label: track.label,
-                      enabled: track.enabled,
-                      readyState: track.readyState
-                  })));
-              } catch (mediaError) {
-                  console.error("[DEBUG] Detailed media error:", mediaError);
-                  console.error("[DEBUG] Error name:", mediaError.name);
-                  console.error("[DEBUG] Error message:", mediaError.message);
-                  
-                  // Try without audio as fallback
-                  if (mediaError.name === 'NotAllowedError') {
-                      throw new Error("Camera access was denied. Please click the camera icon in your browser's address bar and allow camera access.");
-                  } else if (mediaError.name === 'NotFoundError') {
-                      throw new Error("No camera found. Please connect a camera and try again.");
-                  } else if (mediaError.name === 'NotSupportedError') {
-                      throw new Error("Camera access is not supported. Please use HTTPS or a supported browser.");
-                  } else {
-                      console.log("[DEBUG] Trying video-only fallback...");
-                      try {
-                          stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                          console.log("[DEBUG] Video-only stream obtained");
-                      } catch (fallbackError) {
-                          console.error("[DEBUG] Video-only fallback also failed:", fallbackError);
-                          throw mediaError; // Re-throw original error
-                      }
-                  }
+                  await video.play();
               }
-              
-              video.srcObject = stream;
-              
-              // Wait for video to be ready
-              await new Promise((resolve) => {
-                  video.onloadedmetadata = resolve;
-              });
-              
-              await video.play(); // Ensure video starts playing
 
               isProctoring = true;
               startBtn.disabled = true;
@@ -651,7 +840,7 @@
               // Initialize backend connections for full proctoring
               try {
                   initWebSocket();
-                  initMediaRecorder(stream);
+                  initMediaRecorder(mediaStream);
                   setInterval(sendFrameForAnalysis, ANALYSIS_INTERVAL_MS);
                   console.log("[DEBUG] Proctoring backend initialized successfully");
               } catch (error) {
@@ -701,20 +890,67 @@
       // --- Event Listeners for UI ---
       console.log("[DEBUG] Setting up event listeners...");
       
+      // Fullscreen button
+      if (fullscreenBtn) {
+          fullscreenBtn.addEventListener("click", async function(event) {
+              console.log("[DEBUG] Fullscreen button clicked!");
+              event.preventDefault();
+              
+              try {
+                  await requestFullscreen();
+                  isFullscreenEnabled = true;
+                  fullscreenBtn.textContent = '✓ Fullscreen Enabled';
+                  fullscreenBtn.className = 'step-button btn-completed';
+                  enableNextStep(steps.fullscreen, steps.camera, cameraBtn);
+                  console.log("[DEBUG] Fullscreen enabled successfully");
+              } catch (error) {
+                  console.error("[DEBUG] Fullscreen error:", error);
+                  alert('Failed to enter fullscreen mode. Please try again.');
+              }
+          });
+      }
+      
+      // Camera button
+      if (cameraBtn) {
+          cameraBtn.addEventListener("click", async function(event) {
+              console.log("[DEBUG] Camera button clicked!");
+              event.preventDefault();
+              
+              try {
+                  await initializeCamera();
+                  isCameraEnabled = true;
+                  cameraBtn.textContent = '✓ Camera Enabled';
+                  cameraBtn.className = 'step-button btn-completed';
+                  enableNextStep(steps.camera, steps.contest, startBtn);
+                  console.log("[DEBUG] Camera enabled successfully");
+              } catch (error) {
+                  console.error("[DEBUG] Camera error:", error);
+                  // Error handling is done in initializeCamera function
+              }
+          });
+      }
+      
+      // Start contest button
       if (startBtn) {
           console.log("[DEBUG] Adding click listener to start button with ID:", startBtn.id);
           
-          // Test if button is clickable
-          console.log("[DEBUG] Button properties - disabled:", startBtn.disabled, "style.display:", startBtn.style.display);
-          
           startBtn.addEventListener("click", function(event) {
-              console.log("[DEBUG] Start button clicked! Event:", event);
-              event.preventDefault(); // Prevent any default behavior
+              console.log("[DEBUG] Start contest button clicked! Event:", event);
+              event.preventDefault();
+              
+              if (!isFullscreenEnabled) {
+                  alert('Please enable fullscreen mode first.');
+                  return;
+              }
+              
+              if (!isCameraEnabled) {
+                  alert('Please enable camera access first.');
+                  return;
+              }
               
               if (!isProctoring) {
                   console.log("[DEBUG] Starting proctoring...");
                   try {
-                      // Use the full proctoring function
                       startProctoring();
                   } catch (error) {
                       console.error("[DEBUG] Error in startProctoring:", error);
@@ -727,7 +963,6 @@
           console.log("[DEBUG] Start button listener added successfully");
       } else {
           console.error("[DEBUG] ERROR: Start button not found! Cannot add event listener.");
-          console.log("[DEBUG] All buttons on page:", Array.from(document.querySelectorAll('button')).map(b => ({ id: b.id, class: b.className, text: b.textContent.trim() })));
       }
       
       if (toggleBtn) {
@@ -1002,15 +1237,40 @@
           for (let i = 1; i < 99999; i++) window.clearInterval(i);
           if (socket) socket.close();
           if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
-          if (video.srcObject) video.srcObject.getTracks().forEach(track => track.stop());
+          if (mediaStream) {
+              mediaStream.getTracks().forEach(track => track.stop());
+              mediaStream = null;
+          }
+          if (video.srcObject) {
+              video.srcObject = null;
+          }
+
+          // Reset state variables
+          isFullscreenEnabled = false;
+          isCameraEnabled = false;
 
           // Remove proctoring class and restore normal UI
           document.body.classList.remove('proctoring-active');
           proctoringLayout.style.display = "none";
           startupInfo.style.display = "block";
 
-          startBtn.disabled = false;
-          startBtn.textContent = 'Start Proctoring Session';
+          // Reset all steps
+          setStepState(steps.fullscreen, 'active');
+          setStepState(steps.camera, 'inactive');
+          setStepState(steps.contest, 'inactive');
+
+          // Reset buttons
+          fullscreenBtn.textContent = 'Enter Fullscreen Mode';
+          fullscreenBtn.className = 'step-button btn-primary';
+          fullscreenBtn.disabled = false;
+          
+          cameraBtn.textContent = 'Enable Camera';
+          cameraBtn.className = 'step-button btn-primary';
+          cameraBtn.disabled = true;
+          
+          startBtn.textContent = '🎯 Start Proctored Contest';
+          startBtn.className = 'step-button btn-success';
+          startBtn.disabled = true;
       }
   });
   {%- endraw -%}

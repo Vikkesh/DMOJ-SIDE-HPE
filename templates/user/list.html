@@ -8,7 +8,7 @@
 {% endblock %}
 
 {% block js_media %}
-    {{ block.super }}
+    {{ super() }}
     <script>
         // If this page is loaded inside an iframe, notify the parent.
         if (window.parent !== window) {
