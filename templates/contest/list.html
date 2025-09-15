@@ -150,6 +150,16 @@
 {% endmacro %}
 
 {% block body %}
+    <script>
+        // If this page is loaded inside an iframe, notify the parent.
+        if (window.parent !== window) {
+            // Notify the parent wrapper that this page has loaded.
+            window.parent.postMessage(
+                { proctoringPage: "contest_list" },
+                window.location.origin
+            );
+        }
+    </script>
     <div class="content-description">
         {% if active_participations %}
             <h4>{{ _('Active contests') }}</h4>

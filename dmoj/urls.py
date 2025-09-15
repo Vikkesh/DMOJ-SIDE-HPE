@@ -7,6 +7,7 @@ from django.templatetags.static import static
 from django.urls import include, path, re_path, reverse
 from django.utils.functional import lazy
 from django.utils.translation import gettext_lazy as _
+from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.generic import RedirectView
 
 #ADDITIONS
@@ -95,8 +96,8 @@ def exception(request):
 
 def paged_list_view(view, name):
     return include([
-        path('', view.as_view(), name=name),
-        path('<int:page>', view.as_view(), name=name),
+        path('', xframe_options_exempt(view.as_view()), name=name),
+        path('<int:page>', xframe_options_exempt(view.as_view()), name=name),
     ])
 
 
@@ -108,17 +109,17 @@ urlpatterns = [
     path('accounts/', include(register_patterns)),
     path('', include('social_django.urls')),
 
-    path('problems/', problem.ProblemList.as_view(), name='problem_list'),
-    path('problems/random/', problem.RandomProblem.as_view(), name='problem_random'),
+    path('problems/', xframe_options_exempt(problem.ProblemList.as_view()), name='problem_list'),
+    path('problems/random/', xframe_options_exempt(problem.RandomProblem.as_view()), name='problem_random'),
 
     path('problem/<str:problem>', include([
-        path('', problem.ProblemDetail.as_view(), name='problem_detail'),
+        path('', xframe_options_exempt(problem.ProblemDetail.as_view()), name='problem_detail'),
         path('/editorial', problem.ProblemSolution.as_view(), name='problem_editorial'),
         path('/pdf', problem.ProblemPdfView.as_view(), name='problem_pdf'),
         path('/pdf/<slug:language>', problem.ProblemPdfView.as_view(), name='problem_pdf'),
         path('/clone', problem.ProblemClone.as_view(), name='problem_clone'),
-        path('/submit', problem.ProblemSubmit.as_view(), name='problem_submit'),
-        path('/resubmit/<int:submission>', problem.ProblemSubmit.as_view(), name='problem_submit'),
+        path('/submit', xframe_options_exempt(problem.ProblemSubmit.as_view()), name='problem_submit'),
+        path('/resubmit/<int:submission>', xframe_options_exempt(problem.ProblemSubmit.as_view()), name='problem_submit'),
 
         path('/rank/', paged_list_view(ranked_submission.RankedSubmissions, 'ranked_submissions')),
         path('/submissions/', paged_list_view(submission.ProblemSubmissions, 'chronological_submissions')),
@@ -155,30 +156,30 @@ urlpatterns = [
     path('submissions/', paged_list_view(submission.AllSubmissions, 'all_submissions')),
     path('submissions/user/<str:user>/', paged_list_view(submission.AllUserSubmissions, 'all_user_submissions')),
 
-    path('src/<int:submission>', submission.SubmissionSource.as_view(), name='submission_source'),
-    path('src/<int:submission>/raw', submission.SubmissionSourceRaw.as_view(), name='submission_source_raw'),
+    path('src/<int:submission>', xframe_options_exempt(submission.SubmissionSource.as_view()), name='submission_source'),
+    path('src/<int:submission>/raw', xframe_options_exempt(submission.SubmissionSourceRaw.as_view()), name='submission_source_raw'),
 
     path('submission/<int:submission>', include([
-        path('', submission.SubmissionStatus.as_view(), name='submission_status'),
+        path('', xframe_options_exempt(submission.SubmissionStatus.as_view()), name='submission_status'),
         path('/abort', submission.abort_submission, name='submission_abort'),
     ])),
 
     path('users/', include([
-        path('', user.users, name='user_list'),
+        path('', xframe_options_exempt(user.users), name='user_list'),
         path('<int:page>', lambda request, page:
              HttpResponsePermanentRedirect('%s?page=%s' % (reverse('user_list'), page))),
         path('find', user.user_ranking_redirect, name='user_ranking_redirect'),
     ])),
 
-    path('user', user.UserAboutPage.as_view(), name='user_page'),
+    path('user', xframe_options_exempt(user.UserAboutPage.as_view()), name='user_page'),
     path('edit/profile/', user.edit_profile, name='user_edit_profile'),
     path('data/prepare/', user.UserPrepareData.as_view(), name='user_prepare_data'),
     path('data/download/', user.UserDownloadData.as_view(), name='user_download_data'),
     path('user/<str:user>', include([
-        path('', user.UserAboutPage.as_view(), name='user_page'),
+        path('', xframe_options_exempt(user.UserAboutPage.as_view()), name='user_page'),
         path('/solved', include([
-            path('', user.UserProblemsPage.as_view(), name='user_problems'),
-            path('/ajax', user.UserPerformancePointsAjax.as_view(), name='user_pp_ajax'),
+            path('', xframe_options_exempt(user.UserProblemsPage.as_view()), name='user_problems'),
+            path('/ajax', xframe_options_exempt(user.UserPerformancePointsAjax.as_view()), name='user_pp_ajax'),
         ])),
         path('/submissions/', paged_list_view(submission.AllUserSubmissions, 'all_user_submissions_old')),
         path('/submissions/', lambda _, user:
@@ -206,16 +207,17 @@ urlpatterns = [
         path('/ajax', contests.ContestTagDetailAjax.as_view(), name='contest_tag_ajax'),
     ])),
 
-    path('contest/<str:contest>', include([
-        path('', contests.ContestDetail.as_view(), name='contest_view'),
-        path('/moss', contests.ContestMossView.as_view(), name='contest_moss'),
-        path('/moss/delete', contests.ContestMossDelete.as_view(), name='contest_moss_delete'),
-        path('/clone', contests.ContestClone.as_view(), name='contest_clone'),
-        path('/ranking/', contests.ContestRanking.as_view(), name='contest_ranking'),
-        path('/ranking/ajax', contests.contest_ranking_ajax, name='contest_ranking_ajax'),
-        path('/join', contests.ContestJoin.as_view(), name='contest_join'),
-        path('/leave', contests.ContestLeave.as_view(), name='contest_leave'),
-        path('/stats', contests.ContestStats.as_view(), name='contest_stats'),
+        path('contest/<str:contest>', include([
+        path('', xframe_options_exempt(contests.ContestDetail.as_view()), name='contest_view'),
+        path('/moss', xframe_options_exempt(contests.ContestMossView.as_view()), name='contest_moss'),
+        path('/moss/delete', xframe_options_exempt(contests.ContestMossDelete.as_view()), name='contest_moss_delete'),
+        path('/clone', xframe_options_exempt(contests.ContestClone.as_view()), name='contest_clone'),
+        path('/ranking/', xframe_options_exempt(contests.ContestRanking.as_view()), name='contest_ranking'),
+        path('/ranking/ajax', xframe_options_exempt(contests.contest_ranking_ajax), name='contest_ranking_ajax'),
+        path('/join', xframe_options_exempt(contests.ContestJoin.as_view()), name='contest_join'),
+        path('/join/proctored', xframe_options_exempt(contests.ContestProctoredJoin.as_view()), name='contest_proctored_join'),
+        path('/leave', xframe_options_exempt(contests.ContestLeave.as_view()), name='contest_leave'),
+        path('/stats', xframe_options_exempt(contests.ContestStats.as_view()), name='contest_stats'),
 
         path('/rank/<str:problem>/',
              paged_list_view(ranked_submission.ContestRankedSubmission, 'contest_ranked_submissions')),
@@ -225,13 +227,13 @@ urlpatterns = [
         path('/submissions/<str:user>/<str:problem>/',
              paged_list_view(submission.UserContestSubmissions, 'contest_user_submissions')),
 
-        path('/participations', contests.ContestParticipationList.as_view(), name='contest_participation_own'),
+        path('/participations', xframe_options_exempt(contests.ContestParticipationList.as_view()), name='contest_participation_own'),
         path('/participations/<str:user>',
-             contests.ContestParticipationList.as_view(), name='contest_participation'),
-        path('/participation/disqualify', contests.ContestParticipationDisqualify.as_view(),
+             xframe_options_exempt(contests.ContestParticipationList.as_view()), name='contest_participation'),
+        path('/participation/disqualify', xframe_options_exempt(contests.ContestParticipationDisqualify.as_view()),
              name='contest_participation_disqualify'),
 
-        path('/', lambda _, contest: HttpResponsePermanentRedirect(reverse('contest_view', args=[contest]))),
+        path('/', xframe_options_exempt(lambda _, contest: HttpResponsePermanentRedirect(reverse('contest_view', args=[contest])))),
     ])),
 
     path('organizations/', organization.OrganizationList.as_view(), name='organization_list'),

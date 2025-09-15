@@ -105,7 +105,7 @@ def find_free_port(start_port=3001, max_port=3100, used_ports=set()):
 def download_problem_submissions(request, contest_key):
     contest = Contest.objects.get(key=contest_key)
     problems = contest.problems.all()
-    base_dir = "/home/sukhraj/submissions"  # or any path you want
+    base_dir = "/home/lalith/submissions"  # or any path you want
     os.makedirs(base_dir, exist_ok=True)
     tmp_dir = os.path.join(base_dir, f"contest_{contest_key}_{timestamp}")
     os.makedirs(tmp_dir, exist_ok=True)

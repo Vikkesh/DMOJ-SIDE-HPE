@@ -1,6 +1,7 @@
 {% extends "tabs-base.html" %}
 
 {% block tabs %}
+    {% set local_debug = debug|default(False) %}
     {{ make_tab('detail', 'fa-info-circle', url('contest_view', contest.key), _('Info')) }}
     {% if contest.ended or can_edit %}
         {{ make_tab('stats', 'fa-pie-chart', url('contest_stats', contest.key), _('Statistics')) }}
@@ -60,7 +61,7 @@
                 {% else %}
                     {# Allow users to virtual join #}
                     {% set has_exited = contest.users.filter(user=request.profile, has_exited=True).exists() %}
-                    {% if has_exited %}
+                    {% if has_exited and not local_debug %}
                         <div class="contest-join-pseudotab unselectable button disabled">
                             <span class="disabled" title="{{ _('You have exited this contest and cannot rejoin.') }}">
                                 {{ _('Cannot rejoin') }}
@@ -71,6 +72,9 @@
                               class="contest-join-pseudotab unselectable button contest-join-form">
                             {% csrf_token %}
                             <input type="submit" value="{{ _('Virtual join') }}" class="contest-join">
+                            {% if has_exited and local_debug %}
+                                <small style="display: block; color: orange; font-size: 10px;">DEBUG: Rejoining allowed</small>
+                            {% endif %}
                         </form>
                     {% endif %}
                 {% endif %}
@@ -89,24 +93,26 @@
                     </form>
                 {% elif contest.is_live_joinable_by(request.user) %}
                     {% set has_exited = contest.users.filter(user=request.profile, has_exited=True).exists() %}
-                    {% if has_exited %}
+                    {% if has_exited and not local_debug %}
                         <div class="contest-join-pseudotab unselectable button disabled">
                             <span class="disabled" title="{{ _('You have exited this contest and cannot rejoin.') }}">
                                 {{ _('Cannot rejoin') }}
                             </span>
                         </div>
                     {% else %}
-                        <form action="{{ url('contest_join', contest.key) }}" method="post"
+                        <form action="{{ url('contest_proctored_join', contest.key) }}" method="get"
                               class="contest-join-pseudotab unselectable button contest-join-form">
-                            {% csrf_token %}
                             <input type="submit"
-                                   class="contest-join{% if not has_joined %} first-join{% endif %}"
+                                   class="contest-join first-join"
                                    value="{{ _('Join contest') }}">
+                            {% if has_exited and local_debug %}
+                                <small style="display: block; color: orange; font-size: 10px;">DEBUG: Rejoining allowed</small>
+                            {% endif %}
                         </form>
                     {% endif %}
                 {% elif contest.is_spectatable_by(request.user) %}
                     {% set has_exited = contest.users.filter(user=request.profile, has_exited=True).exists() %}
-                    {% if has_exited %}
+                    {% if has_exited and not local_debug %}
                         <div class="contest-join-pseudotab unselectable button disabled">
                             <span class="disabled" title="{{ _('You have exited this contest and cannot rejoin.') }}">
                                 {{ _('Cannot rejoin') }}
@@ -117,6 +123,9 @@
                               class="contest-join-pseudotab unselectable button contest-join-form">
                             {% csrf_token %}
                             <input type="submit" value="{{ _('Spectate contest') }}" class="contest-join">
+                            {% if has_exited and local_debug %}
+                                <small style="display: block; color: orange; font-size: 10px;">DEBUG: Rejoining allowed</small>
+                            {% endif %}
                         </form>
                     {% endif %}
                 {% else %}
