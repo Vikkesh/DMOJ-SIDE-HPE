@@ -1,12 +1,7 @@
 WHAT ALL TO DO 
 On pulling the repo, all these changes should already be there. (JUST MAKE SURE TO DOWNLOAD DOLOS (as given below))
 
->>> FOR COPY-PASTE PREVENTION PART
-go to site/django_ace/static/django_ace/
 
->> create 2 files : 
-widget.css
-widget.js
 
 
 
@@ -24,12 +19,6 @@ the repositories I sent you. Make changes to following files in your system.
 I have a submissions directory globally made by the name of "submissions". This is where the submissions 
 are stored.
 
---> changes in contest-tab.html in site/templates/contest
- -->:Changes in ~/site/templates/contest >> show_similarity_table.html (create this file)
- --> changes in site/dmoj/urls.py
- --> changes in __init__.py in site/judge/views
- --> keep the script in site/judge/views (name of the file is trial_script.py 
- : the one which runs dolos)
 
  
  Further steps : 
@@ -48,4 +37,5 @@ python manage.py runserver 0.0.0.0:8000
  (this is given that you have python3 installed in the venv)
  
  
+
 
