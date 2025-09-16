@@ -198,12 +198,83 @@
     border-radius: 0 15px 15px 0;
   }
   
-  /* Prevent right-click and selection */
+  /* Prevent text selection during exam */
   body.proctoring-active {
     -webkit-user-select: none;
     -moz-user-select: none;
     -ms-user-select: none;
     user-select: none;
+  }
+
+  /* Fullscreen exit confirmation modal */
+  #fullscreen-exit-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.8);
+    z-index: 10001;
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .modal-content {
+    background: white;
+    padding: 30px;
+    border-radius: 10px;
+    text-align: center;
+    max-width: 500px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  }
+
+  .modal-title {
+    color: #dc3545;
+    font-size: 24px;
+    font-weight: bold;
+    margin-bottom: 15px;
+  }
+
+  .modal-message {
+    color: #333;
+    font-size: 16px;
+    line-height: 1.5;
+    margin-bottom: 25px;
+  }
+
+  .modal-buttons {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+  }
+
+  .modal-btn {
+    padding: 12px 25px;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+
+  .modal-btn-cancel {
+    background: #6c757d;
+    color: white;
+  }
+
+  .modal-btn-cancel:hover {
+    background: #5a6268;
+  }
+
+  .modal-btn-leave {
+    background: #dc3545;
+    color: white;
+  }
+
+  .modal-btn-leave:hover {
+    background: #c82333;
   }
   
   body.proctoring-active * {
@@ -294,9 +365,30 @@
   </div>
 </div>
 
+<!-- Fullscreen Exit Confirmation Modal -->
+<div id="fullscreen-exit-modal">
+  <div class="modal-content">
+    <div class="modal-title">⚠️ Contest Security Warning</div>
+    <div class="modal-message">
+      You are attempting to exit fullscreen mode during the proctored contest.<br><br>
+      <strong>This action will be logged as a violation.</strong><br><br>
+      Do you want to:
+    </div>
+    <div class="modal-buttons">
+      <button id="modal-cancel-btn" class="modal-btn modal-btn-cancel">
+        Cancel & Stay in Contest
+      </button>
+      <button id="modal-leave-btn" class="modal-btn modal-btn-leave">
+        Leave Contest
+      </button>
+    </div>
+  </div>
+</div>
+
 <script>
   window.dmojData = {{ dmoj_data|tojson }};
   window.contestProctoredJoinUrl = "{{ url('contest_proctored_join', contest.key) }}";
+    window.contestLeaveUrl = "{{ url('contest_leave', contest.key) }}";
   window.csrfToken = "{{ csrf_token }}";
 </script>
 
@@ -352,6 +444,11 @@
           contest: document.getElementById('contest-step')
       };
       
+      // Modal elements
+      const fullscreenExitModal = document.getElementById('fullscreen-exit-modal');
+      const modalCancelBtn = document.getElementById('modal-cancel-btn');
+      const modalLeaveBtn = document.getElementById('modal-leave-btn');
+      
       if (startupInfo) {
           contestUrl = startupInfo.getAttribute('data-contest-url');
           console.log("[DEBUG] Contest URL from attribute:", contestUrl);
@@ -374,6 +471,9 @@
       let isFullscreenEnabled = false;
       let isCameraEnabled = false;
       let mediaStream = null;
+      let isShowingFullscreenModal = false;
+      let fullscreenExitAttempts = 0;
+      let isUserLeavingContest = false;
       const ANALYSIS_INTERVAL_MS = 500;
       const ROLLING_BUFFER_SECONDS = 20;
 
@@ -437,6 +537,7 @@
           const blockedKeys = [
               'F12', // DevTools
               'F5',  // Refresh
+              'F11', // Fullscreen toggle
               'Escape', // Exit fullscreen
               'Tab'  // Alt+Tab combination
           ];
@@ -445,6 +546,13 @@
               event.preventDefault();
               event.stopPropagation();
               console.log("[DEBUG] Blocked keyboard shortcut:", event.key);
+              
+              // Special handling for fullscreen exit attempts
+              if ((event.key === 'Escape' || event.key === 'F11') && isProctoring && !isShowingFullscreenModal) {
+                  console.log("[DEBUG] User attempted to exit fullscreen via keyboard");
+                  // The fullscreen change will be handled by handleFullscreenChange
+              }
+              
               return false;
           }
           
@@ -526,20 +634,92 @@
       function handleFullscreenChange() {
           if (!isProctoring) return;
           
-          if (!isFullscreen()) {
-              console.log("[WARNING] Fullscreen exited during proctoring session");
-              if (statusDiv) {
-                  statusDiv.textContent = 'WARNING: Fullscreen exit detected - this violation has been logged';
-              }
+          if (!isFullscreen() && !isShowingFullscreenModal && !isUserLeavingContest) {
+              console.log("[DEBUG] Fullscreen exited during proctoring session");
               
-              // Try to re-enter fullscreen automatically
-              setTimeout(() => {
-                  requestFullscreen().catch(error => {
-                      console.error("[DEBUG] Failed to re-enter fullscreen:", error);
-                      statusDiv.textContent = 'CRITICAL: Unable to maintain fullscreen mode';
-                  });
-              }, 1000);
+              // Show the confirmation modal (without logging as violation)
+              showFullscreenExitModal();
           }
+      }
+      
+      function showFullscreenExitModal() {
+          if (isShowingFullscreenModal) return;
+          
+          isShowingFullscreenModal = true;
+          fullscreenExitModal.style.display = 'flex';
+          
+          console.log("[DEBUG] Showing fullscreen exit confirmation");
+          
+          // Update status
+          if (statusDiv) {
+              statusDiv.textContent = "Fullscreen exit detected - Awaiting user decision";
+          }
+      }
+      
+      function hideFullscreenExitModal() {
+          isShowingFullscreenModal = false;
+          fullscreenExitModal.style.display = 'none';
+      }
+      
+      function handleModalCancel() {
+          console.log("[DEBUG] User chose to cancel and stay in contest");
+          hideFullscreenExitModal();
+          
+          // Try to re-enter fullscreen
+          requestFullscreen().then(() => {
+              console.log("[DEBUG] Successfully re-entered fullscreen");
+              if (statusDiv) {
+                  statusDiv.textContent = "Proctoring active - Contest resumed";
+              }
+          }).catch(error => {
+              console.error("[DEBUG] Failed to re-enter fullscreen:", error);
+              if (statusDiv) {
+                  statusDiv.textContent = 'CRITICAL: Unable to re-enter fullscreen mode';
+              }
+              // Show modal again since fullscreen failed
+              setTimeout(() => {
+                  if (!isFullscreen() && isProctoring) {
+                      showFullscreenExitModal();
+                  }
+              }, 1000);
+          });
+      }
+      
+      function handleModalLeave() {
+          console.log("[DEBUG] User chose to leave the contest (modal)");
+          isUserLeavingContest = true;
+          hideFullscreenExitModal();
+
+          // If a leave URL was provided by the template, submit a POST form to it (same as contest-tabs)
+          if (window.contestLeaveUrl) {
+              try {
+                  const form = document.createElement('form');
+                  form.method = 'POST';
+                  form.action = window.contestLeaveUrl;
+                  form.style.display = 'none';
+
+                  const csrfInput = document.createElement('input');
+                  csrfInput.type = 'hidden';
+                  csrfInput.name = 'csrfmiddlewaretoken';
+                  csrfInput.value = window.csrfToken;
+                  form.appendChild(csrfInput);
+
+                  document.body.appendChild(form);
+
+                  // Stop proctoring before navigating away so resources are cleaned up.
+                  try { stopProctoring(); } catch (e) { console.warn('stopProctoring failed before leave:', e); }
+
+                  console.log('[DEBUG] Submitting leave form to', window.contestLeaveUrl);
+                  form.submit();
+                  return; // navigation will occur
+              } catch (error) {
+                  console.error('[DEBUG] Failed to submit leave form:', error);
+              }
+          }
+
+          // Fallback: redirect to contests list
+          try { stopProctoring(); } catch (e) { /* ignore */ }
+          window.location.href = window.location.origin + '/contests/';
       }
 
       // Debug: Check if all elements are found
@@ -776,6 +956,9 @@
               updateTabSwitchDisplay();
               console.log("[DEBUG] Tab switch counter initialized");
               
+              // Initialize fullscreen monitoring
+              isUserLeavingContest = false;
+              
               // Debug: Make sure proctoring layout is visible
               console.log("[DEBUG] Proctoring layout display:", proctoringLayout.style.display);
               console.log("[DEBUG] Proctoring layout dimensions:", `${proctoringLayout.offsetWidth}x${proctoringLayout.offsetHeight}`);
@@ -972,6 +1155,15 @@
           });
       }
       
+      // Modal event listeners
+      if (modalCancelBtn) {
+          modalCancelBtn.addEventListener("click", handleModalCancel);
+      }
+      
+      if (modalLeaveBtn) {
+          modalLeaveBtn.addEventListener("click", handleModalLeave);
+      }
+      
       window.addEventListener("message", (event) => {
           if (event.origin !== window.location.origin || !event.data) return;
           
@@ -989,8 +1181,7 @@
                       <h1 style="color:#28a745;margin-bottom:20px;">✓ Contest Left Successfully</h1>
                       <p style="color:#666;margin-bottom:10px;">You have successfully left the contest.</p>
                       <p style="color:#666;margin-bottom:30px;">Proctoring session has been ended.</p>
-                      <a href="${window.location.origin}/contests/" style="padding:12px 24px;background:#007bff;color:white;text-decoration:none;border-radius:5px;margin-right:10px;">Browse Contests</a>
-                      <a href="${contestUrl}" style="padding:12px 24px;background:#6c757d;color:white;text-decoration:none;border-radius:5px;">View Contest (Without Proctoring)</a>
+                      <a href="${window.location.origin}/contests/" style="padding:12px 24px;background:#007bff;color:white;text-decoration:none;border-radius:5px;">Browse Contests</a>
                   </div>
               `;
               
@@ -1248,6 +1439,13 @@
           // Reset state variables
           isFullscreenEnabled = false;
           isCameraEnabled = false;
+          isShowingFullscreenModal = false;
+          isUserLeavingContest = false;
+          
+          // Hide modal if it's showing
+          if (fullscreenExitModal) {
+              fullscreenExitModal.style.display = 'none';
+          }
 
           // Remove proctoring class and restore normal UI
           document.body.classList.remove('proctoring-active');
