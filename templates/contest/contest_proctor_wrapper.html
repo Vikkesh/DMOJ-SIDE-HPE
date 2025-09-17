@@ -340,6 +340,9 @@
       <h3 style="text-align: center; margin-top: 0; margin-bottom: 15px">
         Proctoring
       </h3>
+      <div style="text-align: center; margin-bottom: 15px; padding: 8px; background-color: #f8f9fa; border-radius: 5px; border: 1px solid #dee2e6;">
+        <strong>Contest:</strong> {{ contest.name }}
+      </div>
       <video
         id="webcam"
         autoplay
@@ -1354,7 +1357,7 @@
               // Send contest data instead of problem data
               formData.append('dmoj_user_id', window.dmojData.userId);
               formData.append('dmoj_user_name', window.dmojData.username);
-              formData.append('dmoj_problem_name', 'test_contest'); // Default value as requested
+              formData.append('dmoj_contest_name', window.dmojData.contestName);
 
               try {
                   statusDiv.textContent = 'Uploading evidence...';
