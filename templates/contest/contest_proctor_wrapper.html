@@ -2,1189 +2,1224 @@
 {% block title %}{{ title }}{% endblock %}
 {% block body %}
 <style>
-  body {
-    margin: 0;
-    padding: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  }
-  body.proctoring-active {
-    overflow: hidden;
-  }
-  
-  /* Hide header and footer in proctoring mode */
-  body.proctoring-active #header,
-  body.proctoring-active #footer,
-  body.proctoring-active .navbar,
-  body.proctoring-active .footer {
-    display: none !important;
-  }
-  
-  /* Make proctoring layout fullscreen */
-  body.proctoring-active #proctoring-layout {
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    width: 100vw !important;
-    height: 100vh !important;
-    z-index: 9999 !important;
-  }
-  #startup-info {
-    max-width: 900px;
-    margin: 50px auto;
-    padding: 40px;
-    background: white;
-    border-radius: 10px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-  }
+    body {
+        margin: 0;
+        padding: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
 
-  .step-container {
-    margin: 20px 0;
-    padding: 25px;
-    border-radius: 8px;
-    border: 2px solid;
-    transition: all 0.3s ease;
-    text-align: left;
-  }
+    body.proctoring-active {
+        overflow: hidden;
+    }
 
-  .step-active {
-    border-color: #2196f3;
-    background: #e3f2fd;
-  }
+    /* Hide header and footer in proctoring mode */
+    body.proctoring-active #header,
+    body.proctoring-active #footer,
+    body.proctoring-active .navbar,
+    body.proctoring-active .footer {
+        display: none !important;
+    }
 
-  .step-completed {
-    border-color: #4caf50;
-    background: #e8f5e8;
-  }
+    /* Make proctoring layout fullscreen */
+    body.proctoring-active #proctoring-layout {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        z-index: 9999 !important;
+    }
 
-  .step-inactive {
-    border-color: #ddd;
-    background: #f9f9f9;
-    opacity: 0.6;
-  }
+    #startup-info {
+        max-width: 900px;
+        margin: 50px auto;
+        padding: 40px;
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    }
 
-  .step-title {
-    margin: 0 0 15px 0;
-    font-size: 1.3em;
-    font-weight: 600;
-  }
+    .step-container {
+        margin: 20px 0;
+        padding: 25px;
+        border-radius: 8px;
+        border: 2px solid;
+        transition: all 0.3s ease;
+        text-align: left;
+    }
 
-  .step-description {
-    margin: 0 0 15px 0;
-    color: #666;
-    line-height: 1.5;
-  }
+    .step-active {
+        border-color: #2196f3;
+        background: #e3f2fd;
+    }
 
-  .step-button {
-    padding: 12px 25px;
-    font-size: 1.1em;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    font-weight: 500;
-  }
+    .step-completed {
+        border-color: #4caf50;
+        background: #e8f5e8;
+    }
 
-  .step-button:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-  }
+    .step-inactive {
+        border-color: #ddd;
+        background: #f9f9f9;
+        opacity: 0.6;
+    }
 
-  .step-button:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-    transform: none;
-    box-shadow: none;
-  }
+    .step-title {
+        margin: 0 0 15px 0;
+        font-size: 1.3em;
+        font-weight: 600;
+    }
 
-  .btn-primary {
-    background: #2196f3;
-    color: white;
-  }
+    .step-description {
+        margin: 0 0 15px 0;
+        color: #666;
+        line-height: 1.5;
+    }
 
-  .btn-success {
-    background: #4caf50;
-    color: white;
-  }
+    .step-button {
+        padding: 12px 25px;
+        font-size: 1.1em;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-weight: 500;
+    }
 
-  .btn-completed {
-    background: #4caf50;
-    color: white;
-  }
-  #proctoring-layout {
-    display: flex;
-    flex-direction: row;
-    width: 100vw;
-    height: 100vh;
-    position: fixed;
-    top: 0;
-    left: 0;
-    background: white;
-    z-index: 9999;
-  }
-  
-  /* Overlay to prevent clicking outside iframe */
-  .iframe-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    z-index: 10000;
-    pointer-events: none;
-    background: transparent;
-  }
-  
-  .iframe-overlay.active {
-    pointer-events: auto;
-  }
-  #dmoj-content-container {
-    flex-grow: 1;
-    height: 100%;
-    position: relative;
-  }
-  #dmoj-contest-frame {
-    width: 100%;
-    height: 100%;
-    border: none;
-    background-color: white;
-  }
-  #proctoring-sidebar {
-    width: 320px;
-    flex-shrink: 0;
-    background-color: #f8f9fa;
-    border-left: 1px solid #dee2e6;
-    transition: all 0.3s ease-in-out;
-    position: relative;
-    display: flex;
-    flex-direction: column;
-  }
-  #proctoring-ui {
-    padding: 1em;
-  }
-  #proctoring-sidebar.collapsed {
-    width: 0;
-    padding: 0;
-    border-left: none;
-  }
-  #proctoring-sidebar.collapsed > * {
-    visibility: hidden;
-  }
-  #toggle-sidebar-btn {
-    position: absolute;
-    top: 50%;
-    left: 0;
-    transform: translateY(-50%) translateX(-100%);
-    width: 25px;
-    height: 80px;
-    border: 1px solid #dee2e6;
-    border-right: none;
-    background-color: #f8f9fa;
-    cursor: pointer;
-    font-size: 20px;
-    padding: 0;
-    border-radius: 15px 0 0 15px;
-    z-index: 100;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #555;
-  }
-  #proctoring-sidebar.collapsed #toggle-sidebar-btn {
-    visibility: visible;
-    transform: translateY(-50%) translateX(0) scaleX(-1);
-    left: -25px;
-    border-right: 1px solid #dee2e6;
-    border-left: none;
-    border-radius: 0 15px 15px 0;
-  }
-  
-  /* Prevent text selection during exam */
-  body.proctoring-active {
-    -webkit-user-select: none;
-    -moz-user-select: none;
-    -ms-user-select: none;
-    user-select: none;
-  }
+    .step-button:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
 
-  /* Fullscreen exit confirmation modal */
-  #fullscreen-exit-modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: rgba(0, 0, 0, 0.8);
-    z-index: 10001;
-    display: none;
-    align-items: center;
-    justify-content: center;
-  }
+    .step-button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+    }
 
-  .modal-content {
-    background: white;
-    padding: 30px;
-    border-radius: 10px;
-    text-align: center;
-    max-width: 500px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-  }
+    .btn-primary {
+        background: #2196f3;
+        color: white;
+    }
 
-  .modal-title {
-    color: #dc3545;
-    font-size: 24px;
-    font-weight: bold;
-    margin-bottom: 15px;
-  }
+    .btn-success {
+        background: #4caf50;
+        color: white;
+    }
 
-  .modal-message {
-    color: #333;
-    font-size: 16px;
-    line-height: 1.5;
-    margin-bottom: 25px;
-  }
+    .btn-completed {
+        background: #4caf50;
+        color: white;
+    }
 
-  .modal-buttons {
-    display: flex;
-    gap: 15px;
-    justify-content: center;
-  }
+    #proctoring-layout {
+        display: flex;
+        flex-direction: row;
+        width: 100vw;
+        height: 100vh;
+        position: fixed;
+        top: 0;
+        left: 0;
+        background: white;
+        z-index: 9999;
+    }
 
-  .modal-btn {
-    padding: 12px 25px;
-    border: none;
-    border-radius: 6px;
-    font-size: 16px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.3s ease;
-  }
+    /* Overlay to prevent clicking outside iframe */
+    .iframe-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: 10000;
+        pointer-events: none;
+        background: transparent;
+    }
 
-  .modal-btn-cancel {
-    background: #6c757d;
-    color: white;
-  }
+    .iframe-overlay.active {
+        pointer-events: auto;
+    }
 
-  .modal-btn-cancel:hover {
-    background: #5a6268;
-  }
+    #dmoj-content-container {
+        flex-grow: 1;
+        height: 100%;
+        position: relative;
+    }
 
-  .modal-btn-leave {
-    background: #dc3545;
-    color: white;
-  }
+    #dmoj-contest-frame {
+        width: 100%;
+        height: 100%;
+        border: none;
+        background-color: white;
+    }
 
-  .modal-btn-leave:hover {
-    background: #c82333;
-  }
-  
-  body.proctoring-active * {
-    -webkit-user-select: none;
-    -moz-user-select: none;
-    -ms-user-select: none;
-    user-select: none;
-  }
+    #proctoring-sidebar {
+        width: 320px;
+        flex-shrink: 0;
+        background-color: #f8f9fa;
+        border-left: 1px solid #dee2e6;
+        transition: all 0.3s ease-in-out;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+    }
+
+    #proctoring-ui {
+        padding: 1em;
+    }
+
+    #proctoring-sidebar.collapsed {
+        width: 0;
+        padding: 0;
+        border-left: none;
+    }
+
+    #proctoring-sidebar.collapsed>* {
+        visibility: hidden;
+    }
+
+    #toggle-sidebar-btn {
+        position: absolute;
+        top: 50%;
+        left: 0;
+        transform: translateY(-50%) translateX(-100%);
+        width: 25px;
+        height: 80px;
+        border: 1px solid #dee2e6;
+        border-right: none;
+        background-color: #f8f9fa;
+        cursor: pointer;
+        font-size: 20px;
+        padding: 0;
+        border-radius: 15px 0 0 15px;
+        z-index: 100;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #555;
+    }
+
+    #proctoring-sidebar.collapsed #toggle-sidebar-btn {
+        visibility: visible;
+        transform: translateY(-50%) translateX(0) scaleX(-1);
+        left: -25px;
+        border-right: 1px solid #dee2e6;
+        border-left: none;
+        border-radius: 0 15px 15px 0;
+    }
+
+    /* Prevent text selection during exam */
+    body.proctoring-active {
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+    }
+
+    /* Fullscreen exit confirmation modal */
+    #fullscreen-exit-modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(0, 0, 0, 0.8);
+        z-index: 10001;
+        display: none;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .modal-content {
+        background: white;
+        padding: 30px;
+        border-radius: 10px;
+        text-align: center;
+        max-width: 500px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    }
+
+    .modal-title {
+        color: #dc3545;
+        font-size: 24px;
+        font-weight: bold;
+        margin-bottom: 15px;
+    }
+
+    .modal-message {
+        color: #333;
+        font-size: 16px;
+        line-height: 1.5;
+        margin-bottom: 25px;
+    }
+
+    .modal-buttons {
+        display: flex;
+        gap: 15px;
+        justify-content: center;
+    }
+
+    .modal-btn {
+        padding: 12px 25px;
+        border: none;
+        border-radius: 6px;
+        font-size: 16px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .modal-btn-cancel {
+        background: #6c757d;
+        color: white;
+    }
+
+    .modal-btn-cancel:hover {
+        background: #5a6268;
+    }
+
+    .modal-btn-leave {
+        background: #dc3545;
+        color: white;
+    }
+
+    .modal-btn-leave:hover {
+        background: #c82333;
+    }
+
+    body.proctoring-active * {
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+    }
 </style>
 
-<div
-  id="startup-info"
-  data-contest-url="{{ url('contest_view', contest.key) }}"
->
-  <h1>{{ title }}</h1>
-  <p>
-    You are about to start a proctoring session for contest:
-    <strong>{{ contest.name }}</strong>.
-  </p>
-  
-  <!-- Step 1: Fullscreen Mode -->
-  <div id="fullscreen-step" class="step-container step-active">
-    <h3 class="step-title">Step 1: Enable Fullscreen Mode</h3>
-    <p class="step-description">
-      For security, this contest requires fullscreen mode. You cannot exit fullscreen during the contest.
+<div id="startup-info" data-contest-url="{{ url('contest_view', contest.key) }}">
+    <h1>{{ title }}</h1>
+    <p>
+        You are about to start a proctoring session for contest:
+        <strong>{{ contest.name }}</strong>.
     </p>
-    <button id="fullscreenBtn" class="step-button btn-primary">
-      Enter Fullscreen Mode
-    </button>
-  </div>
-  
-  <!-- Step 2: Camera Access -->
-  <div id="camera-step" class="step-container step-inactive">
-    <h3 class="step-title">Step 2: Enable Camera Access</h3>
-    <p class="step-description">
-      Camera monitoring is required for proctoring. Please allow camera access when prompted.
-    </p>
-    <button id="cameraBtn" class="step-button btn-primary" disabled>
-      Enable Camera
-    </button>
-  </div>
 
-  <!-- Step 3: Start Contest -->
-  <div id="contest-step" class="step-container step-inactive">
-    <h3 class="step-title">Step 3: Start Proctored Contest</h3>
-    <p class="step-description">
-      All systems ready. Click below to begin your proctored contest session.
-    </p>
-    <button id="startBtn" class="step-button btn-success" disabled>
-      🎯 Start Proctored Contest
-    </button>
-  </div>
+    <!-- Step 1: Fullscreen Mode -->
+    <div id="fullscreen-step" class="step-container step-active">
+        <h3 class="step-title">Step 1: Enable Fullscreen Mode</h3>
+        <p class="step-description">
+            For security, this contest requires fullscreen mode. You cannot exit fullscreen during the contest.
+        </p>
+        <button id="fullscreenBtn" class="step-button btn-primary">
+            Enter Fullscreen Mode
+        </button>
+    </div>
+
+    <!-- Step 2: Camera Access -->
+    <div id="camera-step" class="step-container step-inactive">
+        <h3 class="step-title">Step 2: Enable Camera Access</h3>
+        <p class="step-description">
+            Camera monitoring is required for proctoring. Please allow camera access when prompted.
+        </p>
+        <button id="cameraBtn" class="step-button btn-primary" disabled>
+            Enable Camera
+        </button>
+    </div>
+
+    <!-- Step 3: Start Contest -->
+    <div id="contest-step" class="step-container step-inactive">
+        <h3 class="step-title">Step 3: Start Proctored Contest</h3>
+        <p class="step-description">
+            All systems ready. Click below to begin your proctored contest session.
+        </p>
+        <button id="startBtn" class="step-button btn-success" disabled>
+            🎯 Start Proctored Contest
+        </button>
+    </div>
 </div>
 
 <div id="proctoring-layout" style="display: none">
-  <div id="dmoj-content-container">
-    <iframe id="dmoj-contest-frame" src="about:blank"></iframe>
-    <div class="iframe-overlay" id="iframe-overlay"></div>
-  </div>
-  <div id="proctoring-sidebar">
-    <button id="toggle-sidebar-btn" title="Toggle Proctoring Panel">‹</button>
-    <div id="proctoring-ui">
-      <h3 style="text-align: center; margin-top: 0; margin-bottom: 15px">
-        Proctoring
-      </h3>
-      <div style="text-align: center; margin-bottom: 15px; padding: 8px; background-color: #f8f9fa; border-radius: 5px; border: 1px solid #dee2e6;">
-        <strong>Contest:</strong> {{ contest.name }}
-      </div>
-      <video
-        id="webcam"
-        autoplay
-        muted
-        playsinline
-        style="width: 100%; background: black; border-radius: 5px"
-      ></video>
-      <canvas id="canvas" style="display: none"></canvas>
-      <div
-        id="status"
-        style="margin-top: 10px; font-weight: bold; text-align: center"
-      >
-        Initializing...
-      </div>
-      <div
-        id="tab-switch-counter"
-        style="margin-top: 15px; padding: 10px; background-color: #e9ecef; border-radius: 5px; text-align: center; border: 1px solid #ced4da;"
-      >
-        <div style="font-weight: bold; color: #495057;">Tab Switches: <span id="tab-count">0</span></div>
-        <div style="font-size: 12px; color: #6c757d; margin-top: 2px;">Monitoring Active</div>
-      </div>
+    <div id="dmoj-content-container">
+        <iframe id="dmoj-contest-frame" src="about:blank"></iframe>
+        <div class="iframe-overlay" id="iframe-overlay"></div>
     </div>
-  </div>
+    <div id="proctoring-sidebar">
+        <button id="toggle-sidebar-btn" title="Toggle Proctoring Panel">‹</button>
+        <div id="proctoring-ui">
+            <h3 style="text-align: center; margin-top: 0; margin-bottom: 15px">
+                Proctoring
+            </h3>
+            <div
+                style="text-align: center; margin-bottom: 15px; padding: 8px; background-color: #f8f9fa; border-radius: 5px; border: 1px solid #dee2e6;">
+                <strong>Contest:</strong> {{ contest.name }}
+            </div>
+            <video id="webcam" autoplay muted playsinline
+                style="width: 100%; background: black; border-radius: 5px"></video>
+            <canvas id="canvas" style="display: none"></canvas>
+            <div id="status" style="margin-top: 10px; font-weight: bold; text-align: center">
+                Initializing...
+            </div>
+            <div id="tab-switch-counter"
+                style="margin-top: 15px; padding: 10px; background-color: #e9ecef; border-radius: 5px; text-align: center; border: 1px solid #ced4da;">
+                <div style="font-weight: bold; color: #495057;">Tab Switches: <span id="tab-count">0</span></div>
+                <div style="font-weight: bold; color: #495057;">Time Outside: <span id="time-outside">0s</span></div>
+                <div style="font-size: 12px; color: #6c757d; margin-top: 2px;">Monitoring Active</div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Fullscreen Exit Confirmation Modal -->
 <div id="fullscreen-exit-modal">
-  <div class="modal-content">
-    <div class="modal-title">⚠️ Contest Security Warning</div>
-    <div class="modal-message">
-      You are attempting to exit fullscreen mode during the proctored contest.<br><br>
-      <strong>This action will be logged as a violation.</strong><br><br>
-      Do you want to:
+    <div class="modal-content">
+        <div class="modal-title">⚠ Contest Security Warning</div>
+        <div class="modal-message">
+            You are attempting to exit fullscreen mode during the proctored contest.<br><br>
+            <strong>This action will be logged as a violation.</strong><br><br>
+            Do you want to:
+        </div>
+        <div class="modal-buttons">
+            <button id="modal-cancel-btn" class="modal-btn modal-btn-cancel">
+                Cancel & Stay in Contest
+            </button>
+            <button id="modal-leave-btn" class="modal-btn modal-btn-leave">
+                Leave Contest
+            </button>
+        </div>
     </div>
-    <div class="modal-buttons">
-      <button id="modal-cancel-btn" class="modal-btn modal-btn-cancel">
-        Cancel & Stay in Contest
-      </button>
-      <button id="modal-leave-btn" class="modal-btn modal-btn-leave">
-        Leave Contest
-      </button>
-    </div>
-  </div>
 </div>
 
 <script>
-  window.dmojData = {{ dmoj_data|tojson }};
-  window.contestProctoredJoinUrl = "{{ url('contest_proctored_join', contest.key) }}";
+    window.dmojData = {{ dmoj_data | tojson }};
+    window.contestProctoredJoinUrl = "{{ url('contest_proctored_join', contest.key) }}";
     window.contestLeaveUrl = "{{ url('contest_leave', contest.key) }}";
-  window.csrfToken = "{{ csrf_token }}";
+    window.csrfToken = "{{ csrf_token }}";
 </script>
 
 <script>
-  {%- raw -%}
-  // Simple immediate execution to test
-  console.log("[DEBUG] Script loaded - testing immediate execution");
-  
-  // Test button access immediately
-  setTimeout(function() {
-      console.log("[DEBUG] Testing button access after small delay...");
-      const testBtn = document.getElementById("startBtn");
-      console.log("[DEBUG] Button found in timeout:", !!testBtn);
-      if (testBtn) {
-          console.log("[DEBUG] Button text:", testBtn.textContent);
-          
-          // Add click listener that directly starts full proctoring
-          testBtn.onclick = function() {
-              console.log("[DEBUG] Start Proctoring Session button clicked!");
-              
-              // Directly start the full proctoring without dialogs
-              startProctoring();
-          };
-          console.log("[DEBUG] Simple onclick handler attached");
-      }
-  }, 100);
 
-  document.addEventListener("DOMContentLoaded", function () {
-      console.log("[DEBUG] DOM loaded, initializing proctoring system...");
-      
-      // Check if dmojData is available
-      console.log("[DEBUG] dmojData available:", window.dmojData ? "Yes" : "No");
-      
-      // --- UI & Server Configuration ---
-      const API_BASE_URL = "http://127.0.0.1:8001";
-      const startBtn = document.getElementById("startBtn");
-      const fullscreenBtn = document.getElementById("fullscreenBtn");
-      const cameraBtn = document.getElementById("cameraBtn");
-      const startupInfo = document.getElementById("startup-info");
-      const proctoringLayout = document.getElementById("proctoring-layout");
-      const iframe = document.getElementById("dmoj-contest-frame");
-      const sidebar = document.getElementById("proctoring-sidebar");
-      const toggleBtn = document.getElementById("toggle-sidebar-btn");
-      const video = document.getElementById("webcam");
-      const canvas = document.getElementById("canvas");
-      const statusDiv = document.getElementById("status");
-      let contestUrl = null;
-      
-      // Step elements
-      const steps = {
-          fullscreen: document.getElementById('fullscreen-step'),
-          camera: document.getElementById('camera-step'),
-          contest: document.getElementById('contest-step')
-      };
-      
-      // Modal elements
-      const fullscreenExitModal = document.getElementById('fullscreen-exit-modal');
-      const modalCancelBtn = document.getElementById('modal-cancel-btn');
-      const modalLeaveBtn = document.getElementById('modal-leave-btn');
-      
-      if (startupInfo) {
-          contestUrl = startupInfo.getAttribute('data-contest-url');
-          console.log("[DEBUG] Contest URL from attribute:", contestUrl);
-      } else {
-          console.error("[DEBUG] startup-info element not found!");
-      }
+    // Simple immediate execution to test
+    console.log("[DEBUG] Script loaded - testing immediate execution");
 
-      console.log("[DEBUG] Button found:", startBtn ? "Yes" : "No");
-      if (!startBtn) {
-          console.error("[DEBUG] ERROR: startBtn element not found in DOM!");
-          console.log("[DEBUG] Available elements with ID starting with 'start':", 
-              Array.from(document.querySelectorAll('[id^="start"]')).map(el => el.id));
-      }
+    // Test button access immediately
+    setTimeout(function () {
+        console.log("[DEBUG] Testing button access after small delay...");
+        const testBtn = document.getElementById("startBtn");
+        console.log("[DEBUG] Button found in timeout:", !!testBtn);
+        if (testBtn) {
+            console.log("[DEBUG] Button text:", testBtn.textContent);
 
-      // --- Proctoring State & Config ---
-      let socket, mediaRecorder;
-      let recordedChunks = [];
-      let isProctoring = false;
-      let isUploading = false;
-      let isFullscreenEnabled = false;
-      let isCameraEnabled = false;
-      let mediaStream = null;
-      let isShowingFullscreenModal = false;
-      let fullscreenExitAttempts = 0;
-      let isUserLeavingContest = false;
-      const ANALYSIS_INTERVAL_MS = 500;
-      const ROLLING_BUFFER_SECONDS = 20;
+            // Add click listener that directly starts full proctoring
+            testBtn.onclick = function () {
+                console.log("[DEBUG] Start Proctoring Session button clicked!");
 
-      // Proctoring security functions
-      function enableProctoringLock() {
-          console.log("[DEBUG] Enabling proctoring security lock...");
-          
-          // Block keyboard shortcuts
-          document.addEventListener('keydown', blockKeyboardShortcuts, true);
-          
-          // Block right-click context menu
-          document.addEventListener('contextmenu', blockContextMenu, true);
-          
-          // Block F11 fullscreen toggle
-          document.addEventListener('keydown', blockF11, true);
-          
-          // Prevent navigation away from page
-          window.addEventListener('beforeunload', preventPageExit);
-          
-          // Block Alt+Tab and other window switching
-          document.addEventListener('keydown', blockWindowSwitching, true);
-          
-          // Monitor focus and visibility
-          document.addEventListener('visibilitychange', handleVisibilityChange);
-          window.addEventListener('blur', handleWindowBlur);
-          window.addEventListener('focus', handleWindowFocus);
-          
-          // Monitor fullscreen changes
-          document.addEventListener('fullscreenchange', handleFullscreenChange);
-          document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
-          document.addEventListener('mozfullscreenchange', handleFullscreenChange);
-          document.addEventListener('MSFullscreenChange', handleFullscreenChange);
-          
-          console.log("[DEBUG] Proctoring security measures enabled");
-      }
-      
-      function disableProctoringLock() {
-          console.log("[DEBUG] Disabling proctoring security lock...");
-          
-          // Remove all event listeners
-          document.removeEventListener('keydown', blockKeyboardShortcuts, true);
-          document.removeEventListener('contextmenu', blockContextMenu, true);
-          document.removeEventListener('keydown', blockF11, true);
-          window.removeEventListener('beforeunload', preventPageExit);
-          document.removeEventListener('keydown', blockWindowSwitching, true);
-          document.removeEventListener('visibilitychange', handleVisibilityChange);
-          window.removeEventListener('blur', handleWindowBlur);
-          window.removeEventListener('focus', handleWindowFocus);
-          
-          // Remove fullscreen monitoring
-          document.removeEventListener('fullscreenchange', handleFullscreenChange);
-          document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
-          document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
-          document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
-          
-          console.log("[DEBUG] Proctoring security measures disabled");
-      }
-      
-      function blockKeyboardShortcuts(event) {
-          // Block common shortcuts that could be used to escape
-          const blockedKeys = [
-              'F12', // DevTools
-              'F5',  // Refresh
-              'F11', // Fullscreen toggle
-              'Escape', // Exit fullscreen
-              'Tab'  // Alt+Tab combination
-          ];
-          
-          if (blockedKeys.includes(event.key)) {
-              event.preventDefault();
-              event.stopPropagation();
-              console.log("[DEBUG] Blocked keyboard shortcut:", event.key);
-              
-              // Special handling for fullscreen exit attempts
-              if ((event.key === 'Escape' || event.key === 'F11') && isProctoring && !isShowingFullscreenModal) {
-                  console.log("[DEBUG] User attempted to exit fullscreen via keyboard");
-                  // The fullscreen change will be handled by handleFullscreenChange
-              }
-              
-              return false;
-          }
-          
-          // Block Ctrl combinations
-          if (event.ctrlKey) {
-              const blockedCtrlKeys = ['r', 'R', 'w', 'W', 't', 'T', 'n', 'N', 'shift+I', 'shift+J', 'shift+C', 'u', 'U'];
-              if (blockedCtrlKeys.includes(event.key) || event.shiftKey) {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  console.log("[DEBUG] Blocked Ctrl+", event.key);
-                  return false;
-              }
-          }
-          
-          // Block Alt combinations
-          if (event.altKey) {
-              event.preventDefault();
-              event.stopPropagation();
-              console.log("[DEBUG] Blocked Alt combination");
-              return false;
-          }
-      }
-      
-      function blockContextMenu(event) {
-          event.preventDefault();
-          console.log("[DEBUG] Blocked right-click context menu");
-          return false;
-      }
-      
-      function blockF11(event) {
-          if (event.key === 'F11') {
-              event.preventDefault();
-              console.log("[DEBUG] Blocked F11 fullscreen toggle");
-              return false;
-          }
-      }
-      
-      function preventPageExit(event) {
-          event.preventDefault();
-          event.returnValue = '';
-          console.log("[DEBUG] Prevented page exit attempt");
-          return '';
-      }
-      
-      function blockWindowSwitching(event) {
-          if ((event.altKey && event.key === 'Tab') || 
-              (event.metaKey && event.key === 'Tab') ||
-              (event.ctrlKey && event.altKey && event.key === 'Delete')) {
-              event.preventDefault();
-              event.stopPropagation();
-              console.log("[DEBUG] Blocked window switching attempt");
-              return false;
-          }
-      }
-      
-      function handleVisibilityChange() {
-          if (!isProctoring) return;
-          
-          if (document.hidden) {
-              console.log("[DEBUG] Page lost visibility during proctoring session");
-          } else {
-              console.log("[DEBUG] Page regained visibility during proctoring session");
-              // Increment tab switch counter when page becomes visible
-              incrementTabSwitchCount('visibility change - page regained visibility');
-          }
-      }
-      
-      function handleWindowBlur() {
-          if (isProctoring) {
-              console.log("[WARNING] Window lost focus during proctoring session");
-              // Immediately refocus the window
-              setTimeout(() => {
-                  window.focus();
-              }, 100);
-          }
-      }
-      
-      function handleWindowFocus() {
-          if (isProctoring) {
-              console.log("[DEBUG] Window regained focus");
-          }
-      }
-      
-      function handleFullscreenChange() {
-          if (!isProctoring) return;
-          
-          if (!isFullscreen() && !isShowingFullscreenModal && !isUserLeavingContest) {
-              console.log("[DEBUG] Fullscreen exited during proctoring session");
-              
-              // Show the confirmation modal (without logging as violation)
-              showFullscreenExitModal();
-          }
-      }
-      
-      function showFullscreenExitModal() {
-          if (isShowingFullscreenModal) return;
-          
-          isShowingFullscreenModal = true;
-          fullscreenExitModal.style.display = 'flex';
-          
-          console.log("[DEBUG] Showing fullscreen exit confirmation");
-          
-          // Update status
-          if (statusDiv) {
-              statusDiv.textContent = "Fullscreen exit detected - Awaiting user decision";
-          }
-      }
-      
-      function hideFullscreenExitModal() {
-          isShowingFullscreenModal = false;
-          fullscreenExitModal.style.display = 'none';
-      }
-      
-      function handleModalCancel() {
-          console.log("[DEBUG] User chose to cancel and stay in contest");
-          hideFullscreenExitModal();
-          
-          // Try to re-enter fullscreen
-          requestFullscreen().then(() => {
-              console.log("[DEBUG] Successfully re-entered fullscreen");
-              if (statusDiv) {
-                  statusDiv.textContent = "Proctoring active - Contest resumed";
-              }
-          }).catch(error => {
-              console.error("[DEBUG] Failed to re-enter fullscreen:", error);
-              if (statusDiv) {
-                  statusDiv.textContent = 'CRITICAL: Unable to re-enter fullscreen mode';
-              }
-              // Show modal again since fullscreen failed
-              setTimeout(() => {
-                  if (!isFullscreen() && isProctoring) {
-                      showFullscreenExitModal();
-                  }
-              }, 1000);
-          });
-      }
-      
-      function handleModalLeave() {
-          console.log("[DEBUG] User chose to leave the contest (modal)");
-          isUserLeavingContest = true;
-          hideFullscreenExitModal();
+                // Directly start the full proctoring without dialogs
+                startProctoring();
+            };
+            console.log("[DEBUG] Simple onclick handler attached");
+        }
+    }, 100);
 
-          // If a leave URL was provided by the template, submit a POST form to it (same as contest-tabs)
-          if (window.contestLeaveUrl) {
-              try {
-                  const form = document.createElement('form');
-                  form.method = 'POST';
-                  form.action = window.contestLeaveUrl;
-                  form.style.display = 'none';
+    document.addEventListener("DOMContentLoaded", function () {
+        console.log("[DEBUG] DOM loaded, initializing proctoring system...");
 
-                  const csrfInput = document.createElement('input');
-                  csrfInput.type = 'hidden';
-                  csrfInput.name = 'csrfmiddlewaretoken';
-                  csrfInput.value = window.csrfToken;
-                  form.appendChild(csrfInput);
+        // Check if dmojData is available
+        console.log("[DEBUG] dmojData available:", window.dmojData ? "Yes" : "No");
 
-                  document.body.appendChild(form);
+        // --- UI & Server Configuration ---
+        const API_BASE_URL = "http://127.0.0.1:8001";
+        const startBtn = document.getElementById("startBtn");
+        const fullscreenBtn = document.getElementById("fullscreenBtn");
+        const cameraBtn = document.getElementById("cameraBtn");
+        const startupInfo = document.getElementById("startup-info");
+        const proctoringLayout = document.getElementById("proctoring-layout");
+        const iframe = document.getElementById("dmoj-contest-frame");
+        const sidebar = document.getElementById("proctoring-sidebar");
+        const toggleBtn = document.getElementById("toggle-sidebar-btn");
+        const video = document.getElementById("webcam");
+        const canvas = document.getElementById("canvas");
+        const statusDiv = document.getElementById("status");
+        let contestUrl = null;
 
-                  // Stop proctoring before navigating away so resources are cleaned up.
-                  try { stopProctoring(); } catch (e) { console.warn('stopProctoring failed before leave:', e); }
+        // Step elements
+        const steps = {
+            fullscreen: document.getElementById('fullscreen-step'),
+            camera: document.getElementById('camera-step'),
+            contest: document.getElementById('contest-step')
+        };
 
-                  console.log('[DEBUG] Submitting leave form to', window.contestLeaveUrl);
-                  form.submit();
-                  return; // navigation will occur
-              } catch (error) {
-                  console.error('[DEBUG] Failed to submit leave form:', error);
-              }
-          }
+        // Modal elements
+        const fullscreenExitModal = document.getElementById('fullscreen-exit-modal');
+        const modalCancelBtn = document.getElementById('modal-cancel-btn');
+        const modalLeaveBtn = document.getElementById('modal-leave-btn');
 
-          // Fallback: redirect to contests list
-          try { stopProctoring(); } catch (e) { /* ignore */ }
-          window.location.href = window.location.origin + '/contests/';
-      }
+        if (startupInfo) {
+            contestUrl = startupInfo.getAttribute('data-contest-url');
+            console.log("[DEBUG] Contest URL from attribute:", contestUrl);
+        } else {
+            console.error("[DEBUG] startup-info element not found!");
+        }
 
-      // Debug: Check if all elements are found
-      console.log("[DEBUG] All elements found check:");
-      console.log("- startBtn:", !!startBtn, startBtn ? `(text: "${startBtn.textContent}")` : "");
-      console.log("- fullscreenBtn:", !!fullscreenBtn);
-      console.log("- cameraBtn:", !!cameraBtn);
-      console.log("- startupInfo:", !!startupInfo);
-      console.log("- proctoringLayout:", !!proctoringLayout);
-      console.log("- iframe:", !!iframe);
-      console.log("- sidebar:", !!sidebar);
-      console.log("- toggleBtn:", !!toggleBtn);
-      console.log("- video:", !!video);
-      console.log("- canvas:", !!canvas);
-      console.log("- statusDiv:", !!statusDiv);
-      console.log("- contestUrl:", contestUrl);
+        console.log("[DEBUG] Button found:", startBtn ? "Yes" : "No");
+        if (!startBtn) {
+            console.error("[DEBUG] ERROR: startBtn element not found in DOM!");
+            console.log("[DEBUG] Available elements with ID starting with 'start':",
+                Array.from(document.querySelectorAll('[id^="start"]')).map(el => el.id));
+        }
 
-      // Step management functions
-      function setStepState(stepElement, state) {
-          stepElement.classList.remove('step-active', 'step-completed', 'step-inactive');
-          stepElement.classList.add(`step-${state}`);
-      }
+        // --- Proctoring State & Config ---
+        let socket, mediaRecorder;
+        let recordedChunks = [];
+        let isProctoring = false;
+        let isUploading = false;
+        let isFullscreenEnabled = false;
+        let isCameraEnabled = false;
+        let mediaStream = null;
+        let isShowingFullscreenModal = false;
+        let fullscreenExitAttempts = 0;
+        let isUserLeavingContest = false;
+        const ANALYSIS_INTERVAL_MS = 500;
+        const ROLLING_BUFFER_SECONDS = 20;
 
-      function enableNextStep(currentStep, nextStep, nextButton) {
-          setStepState(currentStep, 'completed');
-          if (nextStep) {
-              setStepState(nextStep, 'active');
-              if (nextButton) {
-                  nextButton.disabled = false;
-              }
-          }
-      }
+        // Proctoring security functions
+        function enableProctoringLock() {
+            console.log("[DEBUG] Enabling proctoring security lock...");
 
-      // Fullscreen management
-      function requestFullscreen() {
-          const element = document.documentElement;
-          
-          if (element.requestFullscreen) {
-              return element.requestFullscreen();
-          } else if (element.webkitRequestFullscreen) {
-              return element.webkitRequestFullscreen();
-          } else if (element.mozRequestFullScreen) {
-              return element.mozRequestFullScreen();
-          } else if (element.msRequestFullscreen) {
-              return element.msRequestFullscreen();
-          }
-          
-          return Promise.reject(new Error('Fullscreen not supported'));
-      }
+            // Block keyboard shortcuts
+            document.addEventListener('keydown', blockKeyboardShortcuts, true);
 
-      function isFullscreen() {
-          return !!(document.fullscreenElement || 
-                   document.webkitFullscreenElement || 
-                   document.mozFullScreenElement || 
-                   document.msFullscreenElement);
-      }
+            // Block right-click context menu
+            document.addEventListener('contextmenu', blockContextMenu, true);
 
-      // Enhanced camera initialization
-      async function initializeCamera() {
-          try {
-              console.log("[DEBUG] Requesting camera access...");
-              
-              if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                  throw new Error("getUserMedia is not supported in this browser or context. Make sure you're using HTTPS.");
-              }
-              
-              mediaStream = await navigator.mediaDevices.getUserMedia({
-                  video: {
-                      width: { min: 640, ideal: 1280, max: 1920 },
-                      height: { min: 480, ideal: 720, max: 1080 }
-                  },
-                  audio: true
-              });
-              
-              video.srcObject = mediaStream;
-              
-              return new Promise((resolve) => {
-                  video.onloadedmetadata = () => {
-                      video.play().then(() => {
-                          console.log("[DEBUG] Camera initialized successfully");
-                          resolve(true);
-                      });
-                  };
-              });
-              
-          } catch (error) {
-              console.error('[DEBUG] Camera initialization failed:', error);
-              
-              let userMessage = 'Camera access failed. ';
-              if (error.name === 'NotAllowedError') {
-                  userMessage += 'Please click the camera icon in your browser and allow camera access.';
-              } else if (error.name === 'NotFoundError') {
-                  userMessage += 'No camera device found. Please connect a camera.';
-              } else if (error.name === 'NotSupportedError') {
-                  userMessage += 'Camera access is not supported. Please use HTTPS or a supported browser.';
-              } else {
-                  userMessage += 'Please check your camera permissions and try again.';
-              }
-              
-              alert(userMessage);
-              throw error;
-          }
-      }
+            // Block F11 fullscreen toggle
+            document.addEventListener('keydown', blockF11, true);
 
-      // Check camera permissions first
-      async function checkCameraPermissions() {
-          console.log("[DEBUG] Checking camera permissions...");
-          
-          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-              console.error("[DEBUG] getUserMedia not supported");
-              return false;
-          }
-          
-          try {
-              // Check if we can enumerate devices
-              const devices = await navigator.mediaDevices.enumerateDevices();
-              const videoDevices = devices.filter(device => device.kind === 'videoinput');
-              console.log("[DEBUG] Video devices found:", videoDevices.length);
-              
-              if (videoDevices.length === 0) {
-                  console.error("[DEBUG] No video devices found");
-                  return false;
-              }
-              
-              return true;
-          } catch (error) {
-              console.error("[DEBUG] Error checking devices:", error);
-              return false;
-          }
-      }
+            // Prevent navigation away from page
+            window.addEventListener('beforeunload', preventPageExit);
 
-      // Full proctoring function with all functionality
-      async function startProctoring() {
-          console.log("[DEBUG] Starting full proctoring session and joining contest...");
-          
-          if (!contestUrl) {
-              console.error("[DEBUG] ERROR: Contest URL not available!");
-              alert("Error: Contest URL not found. Cannot start proctoring.");
-              return;
-          }
-          
-          // Check camera availability first
-          const hasCamera = await checkCameraPermissions();
-          if (!hasCamera) {
-              alert("No camera device detected. Please connect a camera and try again.");
-              return;
-          }
-          
-          try {
-              if (isProctoring) {
-                  console.log("[DEBUG] Proctoring already active, ignoring duplicate call");
-                  return;
-              }
-              
-              // First, join the contest via POST request
-              console.log("[DEBUG] Joining contest...");
-              console.log("[DEBUG] Using URL:", window.contestProctoredJoinUrl);
-              const joinResponse = await fetch(window.contestProctoredJoinUrl, {
-                  method: 'POST',
-                  headers: {
-                      'Content-Type': 'application/x-www-form-urlencoded',
-                      'X-CSRFToken': window.csrfToken
-                  },
-                  body: 'csrfmiddlewaretoken=' + encodeURIComponent(window.csrfToken)
-              });
-              
-              console.log("[DEBUG] Join response status:", joinResponse.status);
-              console.log("[DEBUG] Join response headers:", joinResponse.headers);
-              
-              if (!joinResponse.ok) {
-                  console.error("[DEBUG] Failed to join contest:", joinResponse.status);
-                  const errorText = await joinResponse.text();
-                  console.error("[DEBUG] Error response:", errorText);
-                  alert("Failed to join contest. Please try again.");
-                  return;
-              }
-              
-              // Parse the response to get the actual contest URL
-              const joinData = await joinResponse.json();
-              console.log("[DEBUG] Join response data:", joinData);
-              
-              if (joinData.success && joinData.contest_url) {
-                  contestUrl = joinData.contest_url;
-                  console.log("[DEBUG] Updated contest URL from join response:", contestUrl);
-              } else {
-                  console.error("[DEBUG] Invalid join response:", joinData);
-                  alert("Failed to get contest URL. Please try again.");
-                  return;
-              }
-              
-              console.log("[DEBUG] Successfully joined contest, using existing camera stream...");
-              
-              if (!statusDiv) {
-                  console.error("[DEBUG] ERROR: Status div not found!");
-                  return;
-              }
-              
-              // Use the existing media stream from camera initialization
-              if (!mediaStream) {
-                  throw new Error("Camera stream not available. Please enable camera first.");
-              }
-              
-              console.log("[DEBUG] Using existing camera stream");
-              console.log("[DEBUG] Stream tracks:", mediaStream.getTracks().map(track => ({
-                  kind: track.kind,
-                  label: track.label,
-                  enabled: track.enabled,
-                  readyState: track.readyState
-              })));
-              
-              // Ensure video is still playing
-              if (video.srcObject !== mediaStream) {
-                  video.srcObject = mediaStream;
-                  await new Promise((resolve) => {
-                      video.onloadedmetadata = resolve;
-                  });
-                  await video.play();
-              }
+            // Block Alt+Tab and other window switching
+            document.addEventListener('keydown', blockWindowSwitching, true);
 
-              isProctoring = true;
-              startBtn.disabled = true;
-              startBtn.textContent = 'Proctoring Active';
+            // Monitor focus and visibility
+            document.addEventListener('visibilitychange', handleVisibilityChange);
+            window.addEventListener('blur', handleWindowBlur);
+            window.addEventListener('focus', handleWindowFocus);
 
-              // Setup UI
-              startupInfo.style.display = "none";
-              proctoringLayout.style.display = "flex";
-              document.body.classList.add('proctoring-active');
-              
-              // Enable protective measures
-              enableProctoringLock();
-              
-              // Initialize tab switch counter display
-              tabSwitchCount = 0;
-              updateTabSwitchDisplay();
-              console.log("[DEBUG] Tab switch counter initialized");
-              
-              // Initialize fullscreen monitoring
-              isUserLeavingContest = false;
-              
-              // Debug: Make sure proctoring layout is visible
-              console.log("[DEBUG] Proctoring layout display:", proctoringLayout.style.display);
-              console.log("[DEBUG] Proctoring layout dimensions:", `${proctoringLayout.offsetWidth}x${proctoringLayout.offsetHeight}`);
-              
-              // Add temporary background color to see the iframe container
-              const contentContainer = document.getElementById('dmoj-content-container');
-              if (contentContainer) {
-                  console.log("[DEBUG] Content container dimensions:", `${contentContainer.offsetWidth}x${contentContainer.offsetHeight}`);
-                  contentContainer.style.backgroundColor = '#ffeeee'; // Temporary visual indicator
-              }
-              
-              // Load the contest in the iframe
-              console.log(`[DEBUG] About to set iframe src to: ${contestUrl}`);
-              console.log(`[DEBUG] Iframe element:`, iframe);
-              console.log(`[DEBUG] Iframe current src:`, iframe ? iframe.src : 'N/A');
-              
-              if (iframe && contestUrl) {
-                  // Add load event listener BEFORE setting src
-                  iframe.onload = function() {
-                      console.log("[DEBUG] Iframe loaded successfully!");
-                      console.log("[DEBUG] Iframe final src:", iframe.src);
-                      console.log("[DEBUG] Iframe dimensions:", `${iframe.offsetWidth}x${iframe.offsetHeight}`);
-                      console.log("[DEBUG] Iframe visible:", iframe.offsetHeight > 0 && iframe.offsetWidth > 0);
-                      
-                      // Check iframe position
-                      const rect = iframe.getBoundingClientRect();
-                      console.log("[DEBUG] Iframe position:", rect);
-                      
-                      statusDiv.textContent = 'Contest loaded. Proctoring active.';
-                      
-                      // Try to access iframe content (will fail if cross-origin)
-                      setTimeout(() => {
-                          try {
-                              console.log("[DEBUG] Iframe content document:", iframe.contentDocument);
-                              if (iframe.contentDocument) {
-                                  console.log("[DEBUG] Iframe content body:", iframe.contentDocument.body);
-                              }
-                          } catch (e) {
-                              console.log("[DEBUG] Cannot access iframe content (expected for cross-origin):", e.message);
-                          }
-                      }, 1000);
-                  };
-                  
-                  iframe.onerror = function(error) {
-                      console.error("[DEBUG] Iframe failed to load:", error);
-                      statusDiv.textContent = 'Failed to load contest. Check console.';
-                  };
-                  
-                  // Set the source
-                  console.log(`[DEBUG] Setting iframe src to: ${contestUrl}`);
-                  iframe.src = contestUrl;
-                  console.log(`[DEBUG] Iframe src set successfully to: ${iframe.src}`);
-                  
-              } else {
-                  console.error("[DEBUG] Iframe or contestUrl not available!");
-                  console.log("[DEBUG] iframe:", iframe);
-                  console.log("[DEBUG] contestUrl:", contestUrl);
-                  statusDiv.textContent = 'Error: Could not load contest.';
-                  return;
-              }
+            // Monitor fullscreen changes
+            document.addEventListener('fullscreenchange', handleFullscreenChange);
+            document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+            document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+            document.addEventListener('MSFullscreenChange', handleFullscreenChange);
 
-              // Initialize backend connections for full proctoring
-              try {
-                  initWebSocket();
-                  initMediaRecorder(mediaStream);
-                  setInterval(sendFrameForAnalysis, ANALYSIS_INTERVAL_MS);
-                  console.log("[DEBUG] Proctoring backend initialized successfully");
-              } catch (error) {
-                  console.error("[DEBUG] Error initializing proctoring backend:", error);
-                  console.log("[DEBUG] Continuing proctoring with local security measures only");
-                  statusDiv.textContent = 'Proctoring active (monitoring offline).';
-                  // Continue proctoring even if backend fails - security measures still work
-              }
-              
-          } catch (error) {
-              console.error('[DEBUG] Error starting proctoring:', error);
-              console.error('[DEBUG] Error stack:', error.stack);
-              
-              let errorMessage = 'Could not access camera. ';
-              let alertMessage = 'Could not access camera. ';
-              
-              if (error.message.includes('denied')) {
-                  errorMessage += 'Camera access was denied.';
-                  alertMessage += 'Please click the camera icon in your browser\'s address bar and allow camera access, then try again.';
-              } else if (error.message.includes('HTTPS')) {
-                  errorMessage += 'HTTPS required for camera access.';
-                  alertMessage += 'Camera access requires HTTPS. Please access the site via HTTPS or use localhost.';
-              } else if (error.message.includes('No camera found')) {
-                  errorMessage += 'No camera detected.';
-                  alertMessage += 'Please connect a camera device and try again.';
-              } else if (error.name === 'NotAllowedError') {
-                  errorMessage += 'Permission denied.';
-                  alertMessage += 'Camera permission was denied. Please refresh the page and allow camera access when prompted.';
-              } else if (error.name === 'NotFoundError') {
-                  errorMessage += 'Camera not found.';
-                  alertMessage += 'No camera device was found. Please connect a camera and try again.';
-              } else if (error.name === 'NotSupportedError') {
-                  errorMessage += 'Not supported in this browser.';
-                  alertMessage += 'Camera access is not supported. Please use a modern browser with HTTPS.';
-              } else {
-                  errorMessage += error.message || 'Unknown error occurred.';
-                  alertMessage += 'An error occurred: ' + (error.message || 'Unknown error') + '. Please try again.';
-              }
-              
-              if (statusDiv) {
-                  statusDiv.textContent = errorMessage;
-              }
-              alert(alertMessage);
-          }
-      }
+            console.log("[DEBUG] Proctoring security measures enabled");
+        }
 
-      // --- Event Listeners for UI ---
-      console.log("[DEBUG] Setting up event listeners...");
-      
-      // Fullscreen button
-      if (fullscreenBtn) {
-          fullscreenBtn.addEventListener("click", async function(event) {
-              console.log("[DEBUG] Fullscreen button clicked!");
-              event.preventDefault();
-              
-              try {
-                  await requestFullscreen();
-                  isFullscreenEnabled = true;
-                  fullscreenBtn.textContent = '✓ Fullscreen Enabled';
-                  fullscreenBtn.className = 'step-button btn-completed';
-                  enableNextStep(steps.fullscreen, steps.camera, cameraBtn);
-                  console.log("[DEBUG] Fullscreen enabled successfully");
-              } catch (error) {
-                  console.error("[DEBUG] Fullscreen error:", error);
-                  alert('Failed to enter fullscreen mode. Please try again.');
-              }
-          });
-      }
-      
-      // Camera button
-      if (cameraBtn) {
-          cameraBtn.addEventListener("click", async function(event) {
-              console.log("[DEBUG] Camera button clicked!");
-              event.preventDefault();
-              
-              try {
-                  await initializeCamera();
-                  isCameraEnabled = true;
-                  cameraBtn.textContent = '✓ Camera Enabled';
-                  cameraBtn.className = 'step-button btn-completed';
-                  enableNextStep(steps.camera, steps.contest, startBtn);
-                  console.log("[DEBUG] Camera enabled successfully");
-              } catch (error) {
-                  console.error("[DEBUG] Camera error:", error);
-                  // Error handling is done in initializeCamera function
-              }
-          });
-      }
-      
-      // Start contest button
-      if (startBtn) {
-          console.log("[DEBUG] Adding click listener to start button with ID:", startBtn.id);
-          
-          startBtn.addEventListener("click", function(event) {
-              console.log("[DEBUG] Start contest button clicked! Event:", event);
-              event.preventDefault();
-              
-              if (!isFullscreenEnabled) {
-                  alert('Please enable fullscreen mode first.');
-                  return;
-              }
-              
-              if (!isCameraEnabled) {
-                  alert('Please enable camera access first.');
-                  return;
-              }
-              
-              if (!isProctoring) {
-                  console.log("[DEBUG] Starting proctoring...");
-                  try {
-                      startProctoring();
-                  } catch (error) {
-                      console.error("[DEBUG] Error in startProctoring:", error);
-                  }
-              } else {
-                  console.log("[DEBUG] Proctoring already active");
-              }
-          });
-          
-          console.log("[DEBUG] Start button listener added successfully");
-      } else {
-          console.error("[DEBUG] ERROR: Start button not found! Cannot add event listener.");
-      }
-      
-      if (toggleBtn) {
-          toggleBtn.addEventListener("click", () => {
-              console.log("[DEBUG] Sidebar toggled.");
-              sidebar.classList.toggle("collapsed");
-          });
-      }
-      
-      // Modal event listeners
-      if (modalCancelBtn) {
-          modalCancelBtn.addEventListener("click", handleModalCancel);
-      }
-      
-      if (modalLeaveBtn) {
-          modalLeaveBtn.addEventListener("click", handleModalLeave);
-      }
-      
-      window.addEventListener("message", (event) => {
-          if (event.origin !== window.location.origin || !event.data) return;
-          
-          if (event.data.proctoringPage) {
-              console.log(`[DEBUG] Iframe navigated to: ${event.data.proctoringPage}`);
-          }
-          
-          if (event.data.proctoringAction === "end_session" || event.data.proctoringAction === "leave_contest") {
-              console.log("[DEBUG] Received leave contest command from iframe - user has successfully left the contest");
-              stopProctoring();
-              
-              // Show confirmation message that they've left the contest and exited proctoring
-              document.body.innerHTML = `
+        function disableProctoringLock() {
+            console.log("[DEBUG] Disabling proctoring security lock...");
+
+            // Remove all event listeners
+            document.removeEventListener('keydown', blockKeyboardShortcuts, true);
+            document.removeEventListener('contextmenu', blockContextMenu, true);
+            document.removeEventListener('keydown', blockF11, true);
+            window.removeEventListener('beforeunload', preventPageExit);
+            document.removeEventListener('keydown', blockWindowSwitching, true);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('blur', handleWindowBlur);
+            window.removeEventListener('focus', handleWindowFocus);
+
+            // Remove fullscreen monitoring
+            document.removeEventListener('fullscreenchange', handleFullscreenChange);
+            document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+            document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+            document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+
+            console.log("[DEBUG] Proctoring security measures disabled");
+        }
+
+        function blockKeyboardShortcuts(event) {
+            // Block common shortcuts that could be used to escape
+            const blockedKeys = [
+                'F12', // DevTools
+                'F5',  // Refresh
+                'F11', // Fullscreen toggle
+                'Escape', // Exit fullscreen
+                'Tab'  // Alt+Tab combination
+            ];
+
+            if (blockedKeys.includes(event.key)) {
+                event.preventDefault();
+                event.stopPropagation();
+                console.log("[DEBUG] Blocked keyboard shortcut:", event.key);
+
+                // Special handling for fullscreen exit attempts
+                if ((event.key === 'Escape' || event.key === 'F11') && isProctoring && !isShowingFullscreenModal) {
+                    console.log("[DEBUG] User attempted to exit fullscreen via keyboard");
+                    // The fullscreen change will be handled by handleFullscreenChange
+                }
+
+                return false;
+            }
+
+            // Block Ctrl combinations
+            if (event.ctrlKey) {
+                const blockedCtrlKeys = ['r', 'R', 'w', 'W', 't', 'T', 'n', 'N', 'shift+I', 'shift+J', 'shift+C', 'u', 'U'];
+                if (blockedCtrlKeys.includes(event.key) || event.shiftKey) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    console.log("[DEBUG] Blocked Ctrl+", event.key);
+                    return false;
+                }
+            }
+
+            // Block Alt combinations
+            if (event.altKey) {
+                event.preventDefault();
+                event.stopPropagation();
+                console.log("[DEBUG] Blocked Alt combination");
+                return false;
+            }
+        }
+
+        function blockContextMenu(event) {
+            event.preventDefault();
+            console.log("[DEBUG] Blocked right-click context menu");
+            return false;
+        }
+
+        function blockF11(event) {
+            if (event.key === 'F11') {
+                event.preventDefault();
+                console.log("[DEBUG] Blocked F11 fullscreen toggle");
+                return false;
+            }
+        }
+
+        function preventPageExit(event) {
+            event.preventDefault();
+            event.returnValue = '';
+            console.log("[DEBUG] Prevented page exit attempt");
+            return '';
+        }
+
+        function blockWindowSwitching(event) {
+            if ((event.altKey && event.key === 'Tab') ||
+                (event.metaKey && event.key === 'Tab') ||
+                (event.ctrlKey && event.altKey && event.key === 'Delete')) {
+                event.preventDefault();
+                event.stopPropagation();
+                console.log("[DEBUG] Blocked window switching attempt");
+                return false;
+            }
+        }
+
+        function handleVisibilityChange() {
+            if (!isProctoring) return;
+
+            if (document.hidden) {
+                console.log("[DEBUG] Page lost visibility during proctoring session");
+            } else {
+                console.log("[DEBUG] Page regained visibility during proctoring session");
+                // Increment tab switch counter when page becomes visible
+                incrementTabSwitchCount('visibility change - page regained visibility');
+            }
+        }
+
+        function handleWindowBlur() {
+            if (isProctoring) {
+                console.log("[WARNING] Window lost focus during proctoring session");
+                // Immediately refocus the window
+                setTimeout(() => {
+                    window.focus();
+                }, 100);
+            }
+        }
+
+        function handleWindowFocus() {
+            if (isProctoring) {
+                console.log("[DEBUG] Window regained focus");
+            }
+        }
+
+        function handleFullscreenChange() {
+            if (!isProctoring) return;
+
+            if (!isFullscreen() && !isShowingFullscreenModal && !isUserLeavingContest) {
+                console.log("[DEBUG] Fullscreen exited during proctoring session");
+
+                // Show the confirmation modal (without logging as violation)
+                showFullscreenExitModal();
+            }
+        }
+
+        function showFullscreenExitModal() {
+            if (isShowingFullscreenModal) return;
+
+            isShowingFullscreenModal = true;
+            fullscreenExitModal.style.display = 'flex';
+
+            console.log("[DEBUG] Showing fullscreen exit confirmation");
+
+            // Update status
+            if (statusDiv) {
+                statusDiv.textContent = "Fullscreen exit detected - Awaiting user decision";
+            }
+        }
+
+        function hideFullscreenExitModal() {
+            isShowingFullscreenModal = false;
+            fullscreenExitModal.style.display = 'none';
+        }
+
+        function handleModalCancel() {
+            console.log("[DEBUG] User chose to cancel and stay in contest");
+            hideFullscreenExitModal();
+
+            // Try to re-enter fullscreen
+            requestFullscreen().then(() => {
+                console.log("[DEBUG] Successfully re-entered fullscreen");
+                if (statusDiv) {
+                    statusDiv.textContent = "Proctoring active - Contest resumed";
+                }
+            }).catch(error => {
+                console.error("[DEBUG] Failed to re-enter fullscreen:", error);
+                if (statusDiv) {
+                    statusDiv.textContent = 'CRITICAL: Unable to re-enter fullscreen mode';
+                }
+                // Show modal again since fullscreen failed
+                setTimeout(() => {
+                    if (!isFullscreen() && isProctoring) {
+                        showFullscreenExitModal();
+                    }
+                }, 1000);
+            });
+        }
+
+        function handleModalLeave() {
+            console.log("[DEBUG] User chose to leave the contest (modal)");
+            isUserLeavingContest = true;
+            hideFullscreenExitModal();
+
+            // If a leave URL was provided by the template, submit a POST form to it (same as contest-tabs)
+            if (window.contestLeaveUrl) {
+                try {
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = window.contestLeaveUrl;
+                    form.style.display = 'none';
+
+                    const csrfInput = document.createElement('input');
+                    csrfInput.type = 'hidden';
+                    csrfInput.name = 'csrfmiddlewaretoken';
+                    csrfInput.value = window.csrfToken;
+                    form.appendChild(csrfInput);
+
+                    document.body.appendChild(form);
+
+                    // Stop proctoring before navigating away so resources are cleaned up.
+                    try { stopProctoring(); } catch (e) { console.warn('stopProctoring failed before leave:', e); }
+
+                    console.log('[DEBUG] Submitting leave form to', window.contestLeaveUrl);
+                    form.submit();
+                    return; // navigation will occur
+                } catch (error) {
+                    console.error('[DEBUG] Failed to submit leave form:', error);
+                }
+            }
+
+            // Fallback: redirect to contests list
+            try { stopProctoring(); } catch (e) { /* ignore */ }
+            window.location.href = window.location.origin + '/contests/';
+        }
+
+        // Debug: Check if all elements are found
+        console.log("[DEBUG] All elements found check:");
+        console.log("- startBtn:", !!startBtn, startBtn ? ("text: " + startBtn.textContent) : "");
+        console.log("- fullscreenBtn:", !!fullscreenBtn);
+        console.log("- cameraBtn:", !!cameraBtn);
+        console.log("- startupInfo:", !!startupInfo);
+        console.log("- proctoringLayout:", !!proctoringLayout);
+        console.log("- iframe:", !!iframe);
+        console.log("- sidebar:", !!sidebar);
+        console.log("- toggleBtn:", !!toggleBtn);
+        console.log("- video:", !!video);
+        console.log("- canvas:", !!canvas);
+        console.log("- statusDiv:", !!statusDiv);
+        console.log("- contestUrl:", contestUrl);
+
+        // Step management functions
+        function setStepState(stepElement, state) {
+            if (!stepElement) return;
+            stepElement.classList.remove('step-active', 'step-completed', 'step-inactive');
+            stepElement.classList.add('step-' + state);
+        }
+
+        function enableNextStep(currentStep, nextStep, nextButton) {
+            setStepState(currentStep, 'completed');
+            if (nextStep) {
+                setStepState(nextStep, 'active');
+                if (nextButton) {
+                    nextButton.disabled = false;
+                }
+            }
+        }
+
+        // Fullscreen management
+        function requestFullscreen() {
+            const element = document.documentElement;
+            
+            // Create a promise to handle all browser prefixes
+            return new Promise((resolve, reject) => {
+                const rfs = element.requestFullscreen ||
+                    element.webkitRequestFullscreen ||
+                    element.mozRequestFullScreen ||
+                    element.msRequestFullscreen;
+
+                if (!rfs) {
+                    reject(new Error('Fullscreen not supported'));
+                    return;
+                }
+
+                // Add event listener for successful fullscreen change
+                const fullscreenChange = () => {
+                    if (isFullscreen()) {
+                        document.removeEventListener('fullscreenchange', fullscreenChange);
+                        document.removeEventListener('webkitfullscreenchange', fullscreenChange);
+                        document.removeEventListener('mozfullscreenchange', fullscreenChange);
+                        document.removeEventListener('MSFullscreenChange', fullscreenChange);
+                        resolve();
+                    }
+                };
+
+                // Listen for fullscreen change events (with vendor prefixes)
+                document.addEventListener('fullscreenchange', fullscreenChange);
+                document.addEventListener('webkitfullscreenchange', fullscreenChange);
+                document.addEventListener('mozfullscreenchange', fullscreenChange);
+                document.addEventListener('MSFullscreenChange', fullscreenChange);
+
+                // Request fullscreen
+                rfs.call(element).catch(reject);
+            });
+        }
+
+        function isFullscreen() {
+            return !!(document.fullscreenElement ||
+                document.webkitFullscreenElement ||
+                document.mozFullScreenElement ||
+                document.msFullscreenElement);
+        }
+
+        // Enhanced camera initialization
+        async function initializeCamera() {
+            try {
+                console.log("[DEBUG] Requesting camera access...");
+
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error("getUserMedia is not supported in this browser or context. Make sure you're using HTTPS.");
+                }
+
+                mediaStream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: { min: 640, ideal: 1280, max: 1920 },
+                        height: { min: 480, ideal: 720, max: 1080 }
+                    },
+                    audio: true
+                });
+
+                video.srcObject = mediaStream;
+
+                return new Promise((resolve) => {
+                    video.onloadedmetadata = () => {
+                        video.play().then(() => {
+                            console.log("[DEBUG] Camera initialized successfully");
+                            resolve(true);
+                        });
+                    };
+                });
+
+            } catch (error) {
+                console.error('[DEBUG] Camera initialization failed:', error);
+
+                let userMessage = 'Camera access failed. ';
+                if (error.name === 'NotAllowedError') {
+                    userMessage += 'Please click the camera icon in your browser and allow camera access.';
+                } else if (error.name === 'NotFoundError') {
+                    userMessage += 'No camera device found. Please connect a camera.';
+                } else if (error.name === 'NotSupportedError') {
+                    userMessage += 'Camera access is not supported. Please use HTTPS or a supported browser.';
+                } else {
+                    userMessage += 'Please check your camera permissions and try again.';
+                }
+
+                alert(userMessage);
+                throw error;
+            }
+        }
+
+        // Check camera permissions first
+        async function checkCameraPermissions() {
+            console.log("[DEBUG] Checking camera permissions...");
+
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                console.error("[DEBUG] getUserMedia not supported");
+                return false;
+            }
+
+            try {
+                // Check if we can enumerate devices
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = devices.filter(device => device.kind === 'videoinput');
+                console.log("[DEBUG] Video devices found:", videoDevices.length);
+
+                if (videoDevices.length === 0) {
+                    console.error("[DEBUG] No video devices found");
+                    return false;
+                }
+
+                return true;
+            } catch (error) {
+                console.error("[DEBUG] Error checking devices:", error);
+                return false;
+            }
+        }
+
+        // Full proctoring function with all functionality
+        async function startProctoring() {
+            console.log("[DEBUG] Starting full proctoring session and joining contest...");
+
+            if (!contestUrl) {
+                console.error("[DEBUG] ERROR: Contest URL not available!");
+                alert("Error: Contest URL not found. Cannot start proctoring.");
+                return;
+            }
+
+            // Check camera availability first
+            const hasCamera = await checkCameraPermissions();
+            if (!hasCamera) {
+                alert("No camera device detected. Please connect a camera and try again.");
+                return;
+            }
+
+            try {
+                if (isProctoring) {
+                    console.log("[DEBUG] Proctoring already active, ignoring duplicate call");
+                    return;
+                }
+
+                // First, join the contest via POST request
+                console.log("[DEBUG] Joining contest...");
+                console.log("[DEBUG] Using URL:", window.contestProctoredJoinUrl);
+                const joinResponse = await fetch(window.contestProctoredJoinUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRFToken': window.csrfToken
+                    },
+                    body: 'csrfmiddlewaretoken=' + encodeURIComponent(window.csrfToken)
+                });
+
+                console.log("[DEBUG] Join response status:", joinResponse.status);
+                console.log("[DEBUG] Join response headers:", joinResponse.headers);
+
+                if (!joinResponse.ok) {
+                    console.error("[DEBUG] Failed to join contest:", joinResponse.status);
+                    const errorText = await joinResponse.text();
+                    console.error("[DEBUG] Error response:", errorText);
+                    alert("Failed to join contest. Please try again.");
+                    return;
+                }
+
+                // Parse the response to get the actual contest URL
+                const joinData = await joinResponse.json();
+                console.log("[DEBUG] Join response data:", joinData);
+
+                if (joinData.success && joinData.contest_url) {
+                    contestUrl = joinData.contest_url;
+                    console.log("[DEBUG] Updated contest URL from join response:", contestUrl);
+                } else {
+                    console.error("[DEBUG] Invalid join response:", joinData);
+                    alert("Failed to get contest URL. Please try again.");
+                    return;
+                }
+
+                console.log("[DEBUG] Successfully joined contest, using existing camera stream...");
+
+                if (!statusDiv) {
+                    console.error("[DEBUG] ERROR: Status div not found!");
+                    return;
+                }
+
+                // Use the existing media stream from camera initialization
+                if (!mediaStream) {
+                    throw new Error("Camera stream not available. Please enable camera first.");
+                }
+
+                console.log("[DEBUG] Using existing camera stream");
+                console.log("[DEBUG] Stream tracks:", mediaStream.getTracks().map(track => ({
+                    kind: track.kind,
+                    label: track.label,
+                    enabled: track.enabled,
+                    readyState: track.readyState
+                })));
+
+                // Ensure video is still playing
+                if (video.srcObject !== mediaStream) {
+                    video.srcObject = mediaStream;
+                    await new Promise((resolve) => {
+                        video.onloadedmetadata = resolve;
+                    });
+                    await video.play();
+                }
+
+                isProctoring = true;
+                startBtn.disabled = true;
+                startBtn.textContent = 'Proctoring Active';
+
+                // Setup UI
+                startupInfo.style.display = "none";
+                proctoringLayout.style.display = "flex";
+                document.body.classList.add('proctoring-active');
+
+                // Enable protective measures
+                enableProctoringLock();
+
+                // Initialize tab switch counter display
+                tabSwitchCount = 0;
+                updateTabSwitchDisplay();
+                console.log("[DEBUG] Tab switch counter initialized");
+
+                // Initialize fullscreen monitoring
+                isUserLeavingContest = false;
+
+                // Debug: Make sure proctoring layout is visible
+                console.log("[DEBUG] Proctoring layout display:", proctoringLayout.style.display);
+                console.log("[DEBUG] Proctoring layout dimensions:", proctoringLayout.offsetWidth + "x" + proctoringLayout.offsetHeight);
+
+                // Add temporary background color to see the iframe container
+                const contentContainer = document.getElementById('dmoj-content-container');
+                if (contentContainer) {
+                    console.log("[DEBUG] Content container dimensions:", contentContainer.offsetWidth + "x" + contentContainer.offsetHeight);
+                    contentContainer.style.backgroundColor = '#ffeeee'; // Temporary visual indicator
+                }
+
+                // Load the contest in the iframe
+                console.log("[DEBUG] About to set iframe src to:", contestUrl);
+                console.log("[DEBUG] Iframe element:", iframe);
+                console.log("[DEBUG] Iframe current src:", iframe ? iframe.src : 'N/A');
+
+                if (iframe && contestUrl) {
+                    // Add load event listener BEFORE setting src
+                    iframe.onload = function () {
+                        console.log("[DEBUG] Iframe loaded successfully!");
+                        console.log("[DEBUG] Iframe final src:", iframe.src);
+                        console.log("[DEBUG] Iframe dimensions:", iframe.offsetWidth + "x" + iframe.offsetHeight);
+                        console.log("[DEBUG] Iframe visible:", iframe.offsetHeight > 0 && iframe.offsetWidth > 0);
+
+                        // Check iframe position
+                        const rect = iframe.getBoundingClientRect();
+                        console.log("[DEBUG] Iframe position:", rect);
+
+                        statusDiv.textContent = 'Contest loaded. Proctoring active.';
+
+                        // Try to access iframe content (will fail if cross-origin)
+                        setTimeout(() => {
+                            try {
+                                console.log("[DEBUG] Iframe content document:", iframe.contentDocument);
+                                if (iframe.contentDocument) {
+                                    console.log("[DEBUG] Iframe content body:", iframe.contentDocument.body);
+                                }
+                            } catch (e) {
+                                console.log("[DEBUG] Cannot access iframe content (expected for cross-origin):", e.message);
+                            }
+                        }, 1000);
+                    };
+
+                    iframe.onerror = function (error) {
+                        console.error("[DEBUG] Iframe failed to load:", error);
+                        statusDiv.textContent = 'Failed to load contest. Check console.';
+                    };
+
+                    // Set the source
+                    console.log("[DEBUG] Setting iframe src to:", contestUrl);
+                    iframe.src = contestUrl;
+                    console.log("[DEBUG] Iframe src set successfully to:", iframe.src);
+
+                } else {
+                    console.error("[DEBUG] Iframe or contestUrl not available!");
+                    console.log("[DEBUG] iframe:", iframe);
+                    console.log("[DEBUG] contestUrl:", contestUrl);
+                    statusDiv.textContent = 'Error: Could not load contest.';
+                    return;
+                }
+
+                // Initialize backend connections for full proctoring
+                try {
+                    initWebSocket();
+                    initMediaRecorder(mediaStream);
+                    setInterval(sendFrameForAnalysis, ANALYSIS_INTERVAL_MS);
+                    console.log("[DEBUG] Proctoring backend initialized successfully");
+                } catch (error) {
+                    console.error("[DEBUG] Error initializing proctoring backend:", error);
+                    console.log("[DEBUG] Continuing proctoring with local security measures only");
+                    statusDiv.textContent = 'Proctoring active (monitoring offline).';
+                    // Continue proctoring even if backend fails - security measures still work
+                }
+
+            } catch (error) {
+                console.error('[DEBUG] Error starting proctoring:', error);
+                console.error('[DEBUG] Error stack:', error.stack);
+
+                let errorMessage = 'Could not access camera. ';
+                let alertMessage = 'Could not access camera. ';
+
+                if (error.message.includes('denied')) {
+                    errorMessage += 'Camera access was denied.';
+                    alertMessage += 'Please click the camera icon in your browser\'s address bar and allow camera access, then try again.';
+                } else if (error.message.includes('HTTPS')) {
+                    errorMessage += 'HTTPS required for camera access.';
+                    alertMessage += 'Camera access requires HTTPS. Please access the site via HTTPS or use localhost.';
+                } else if (error.message.includes('No camera found')) {
+                    errorMessage += 'No camera detected.';
+                    alertMessage += 'Please connect a camera device and try again.';
+                } else if (error.name === 'NotAllowedError') {
+                    errorMessage += 'Permission denied.';
+                    alertMessage += 'Camera permission was denied. Please refresh the page and allow camera access when prompted.';
+                } else if (error.name === 'NotFoundError') {
+                    errorMessage += 'Camera not found.';
+                    alertMessage += 'No camera device was found. Please connect a camera and try again.';
+                } else if (error.name === 'NotSupportedError') {
+                    errorMessage += 'Not supported in this browser.';
+                    alertMessage += 'Camera access is not supported. Please use a modern browser with HTTPS.';
+                } else {
+                    errorMessage += error.message || 'Unknown error occurred.';
+                    alertMessage += 'An error occurred: ' + (error.message || 'Unknown error') + '. Please try again.';
+                }
+
+                if (statusDiv) {
+                    statusDiv.textContent = errorMessage;
+                }
+                alert(alertMessage);
+            }
+        }
+
+        // --- Event Listeners for UI ---
+        console.log("[DEBUG] Setting up event listeners...");
+
+        // Fullscreen button
+        if (fullscreenBtn) {
+            fullscreenBtn.addEventListener("click", async function (event) {
+                console.log("[DEBUG] Fullscreen button clicked!");
+                event.preventDefault();
+
+                if (isFullscreen()) {
+                    console.log("[DEBUG] Already in fullscreen mode");
+                    return;
+                }
+
+                try {
+                    fullscreenBtn.disabled = true;  // Prevent double-clicks
+                    await requestFullscreen();
+                    
+                    // Double-check that we're actually in fullscreen mode
+                    if (isFullscreen()) {
+                        isFullscreenEnabled = true;
+                        fullscreenBtn.textContent = '✓ Fullscreen Enabled';
+                        fullscreenBtn.className = 'step-button btn-completed';
+                        enableNextStep(steps.fullscreen, steps.camera, cameraBtn);
+                        console.log("[DEBUG] Fullscreen enabled successfully");
+                    } else {
+                        throw new Error('Fullscreen mode not activated');
+                    }
+                } catch (error) {
+                    console.error("[DEBUG] Fullscreen error:", error);
+                    alert('Failed to enter fullscreen mode. Please make sure popups are allowed and try again.');
+                    fullscreenBtn.disabled = false;  // Re-enable the button on error
+                }
+            });
+        }
+
+        // Camera button
+        if (cameraBtn) {
+            cameraBtn.addEventListener("click", async function (event) {
+                console.log("[DEBUG] Camera button clicked!");
+                event.preventDefault();
+
+                try {
+                    await initializeCamera();
+                    isCameraEnabled = true;
+                    cameraBtn.textContent = '✓ Camera Enabled';
+                    cameraBtn.className = 'step-button btn-completed';
+                    enableNextStep(steps.camera, steps.contest, startBtn);
+                    console.log("[DEBUG] Camera enabled successfully");
+                } catch (error) {
+                    console.error("[DEBUG] Camera error:", error);
+                    // Error handling is done in initializeCamera function
+                }
+            });
+        }
+
+        // Start contest button
+        if (startBtn) {
+            console.log("[DEBUG] Adding click listener to start button with ID:", startBtn.id);
+
+            startBtn.addEventListener("click", function (event) {
+                console.log("[DEBUG] Start contest button clicked! Event:", event);
+                event.preventDefault();
+
+                if (!isFullscreenEnabled) {
+                    alert('Please enable fullscreen mode first.');
+                    return;
+                }
+
+                if (!isCameraEnabled) {
+                    alert('Please enable camera access first.');
+                    return;
+                }
+
+                if (!isProctoring) {
+                    console.log("[DEBUG] Starting proctoring...");
+                    try {
+                        startProctoring();
+                    } catch (error) {
+                        console.error("[DEBUG] Error in startProctoring:", error);
+                    }
+                } else {
+                    console.log("[DEBUG] Proctoring already active");
+                }
+            });
+
+            console.log("[DEBUG] Start button listener added successfully");
+        } else {
+            console.error("[DEBUG] ERROR: Start button not found! Cannot add event listener.");
+        }
+
+        if (toggleBtn) {
+            toggleBtn.addEventListener("click", () => {
+                console.log("[DEBUG] Sidebar toggled.");
+                sidebar.classList.toggle("collapsed");
+            });
+        }
+
+        // Modal event listeners
+        if (modalCancelBtn) {
+            modalCancelBtn.addEventListener("click", handleModalCancel);
+        }
+
+        if (modalLeaveBtn) {
+            modalLeaveBtn.addEventListener("click", handleModalLeave);
+        }
+
+        window.addEventListener("message", (event) => {
+            if (event.origin !== window.location.origin || !event.data) return;
+
+            if (event.data.proctoringPage) {
+                console.log("[DEBUG] Iframe navigated to:", event.data.proctoringPage);
+            }
+
+            if (event.data.proctoringAction === "end_session" || event.data.proctoringAction === "leave_contest") {
+                console.log("[DEBUG] Received leave contest command from iframe - user has successfully left the contest");
+                stopProctoring();
+
+                // Show confirmation message that they've left the contest and exited proctoring
+                document.body.innerHTML = `
                   <div style="width:100vw;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#f8f9fa;">
                       <h1 style="color:#28a745;margin-bottom:20px;">✓ Contest Left Successfully</h1>
                       <p style="color:#666;margin-bottom:10px;">You have successfully left the contest.</p>
@@ -1192,294 +1227,444 @@
                       <a href="${window.location.origin}/contests/" style="padding:12px 24px;background:#007bff;color:white;text-decoration:none;border-radius:5px;">Browse Contests</a>
                   </div>
               `;
-              
-              // After 3 seconds, redirect to contests list
-              setTimeout(() => {
-                  window.location.href = window.location.origin + "/contests/";
-              }, 3000);
-          }
-          
-          if (event.data.proctoringAction === "contest_violation") {
-              console.log("[WARNING] Contest violation detected from iframe");
-              statusDiv.textContent = 'VIOLATION: ' + (event.data.message || 'Contest rule violation detected');
-          }
-      });
 
-      // --- Tab Switching Detection for Proctoring ---
-      let tabSwitchCount = 0;
-      let lastBlurTime = 0;
-      let lastFocusTime = Date.now();
-      let isWindowFocused = true;
-      let switchCooldownActive = false;
-      
-      function updateTabSwitchDisplay() {
-          const tabCountElement = document.getElementById('tab-count');
-          if (tabCountElement) {
-              tabCountElement.textContent = tabSwitchCount;
-          }
-      }
-      
-      function incrementTabSwitchCount(reason) {
-          if (!isProctoring) return;
-          
-          const now = Date.now();
-          const timeSinceLastSwitch = now - lastFocusTime;
-          
-          // Prevent duplicate counting within 2 seconds
-          if (switchCooldownActive || timeSinceLastSwitch < 2000) {
-              console.log("[DEBUG] Tab switch ignored - cooldown active or too recent");
-              return;
-          }
-          
-          tabSwitchCount++;
-          switchCooldownActive = true;
-          
-          console.log(`[DEBUG] Tab switch detected (${reason}) - count now: ${tabSwitchCount}`);
-          updateTabSwitchDisplay();
-          
-          // Reset cooldown after 2 seconds
-          setTimeout(() => {
-              switchCooldownActive = false;
-          }, 2000);
-          
-          // Update status to show violation
-          if (statusDiv) {
-              statusDiv.textContent = `WARNING: Tab switches detected: ${tabSwitchCount}`;
-          }
-      }
-      
-      // Window focus/blur detection
-      window.addEventListener('blur', function(e) {
-          if (!isProctoring) return;
-          
-          lastBlurTime = Date.now();
-          isWindowFocused = false;
-          console.log("[DEBUG] Window lost focus - potential tab switch");
-          // Increment counter immediately when window loses focus
-          incrementTabSwitchCount('window blur - focus lost');
-      });
-      
-      window.addEventListener('focus', function(e) {
-          if (!isProctoring) return;
-          
-          const now = Date.now();
-          const blurDuration = lastBlurTime > 0 ? now - lastBlurTime : 0;
-          
-          lastFocusTime = now;
-          
-          // If window was blurred for more than 500ms, count as tab switch
-          if (!isWindowFocused && blurDuration > 500) {
-              incrementTabSwitchCount(`focus regained after ${blurDuration}ms`);
-          }
-          
-          isWindowFocused = true;
-          console.log("[DEBUG] Window regained focus");
-      });
-      
-      // Visibility change detection (backup method)
-      document.addEventListener('visibilitychange', function() {
-          if (!isProctoring) return;
-          
-          if (document.hidden) {
-              console.log("[DEBUG] Page became hidden - potential tab switch");
-          } else {
-              console.log("[DEBUG] Page became visible - incrementing tab switch counter");
-              // Always increment when page becomes visible during proctoring
-              incrementTabSwitchCount('visibility change - page became visible');
-          }
-      });
+                // After 3 seconds, redirect to contests list
+                setTimeout(() => {
+                    window.location.href = window.location.origin + "/contests/";
+                }, 3000);
+            }
 
-      // --- Core Proctoring Functions ---
+            if (event.data.proctoringAction === "contest_violation") {
+                console.log("[WARNING] Contest violation detected from iframe");
+                statusDiv.textContent = 'VIOLATION: ' + (event.data.message || 'Contest rule violation detected');
+            }
+        });
 
-      /**
-       * Initializes the WebSocket connection.
-       */
-      function initWebSocket() {
-          // Test cloud backend connection
-          console.log(`[DEBUG] Testing cloud backend connection to: ${API_BASE_URL}/upload-clip`);
-          
-          const wsUrl = `${API_BASE_URL.replace('http', 'ws')}/ws`;
-          console.log(`[DEBUG] Initializing WebSocket to: ${wsUrl}`);
-          socket = new WebSocket(wsUrl);
+        // --- Tab Switching Detection for Proctoring ---
+        let tabSwitchCount = 0;
+        let lastBlurTime = 0;
+        let lastFocusTime = Date.now();
+        let isWindowFocused = true;
+        let switchCooldownActive = false;
+        let hasCountedSinceBlur = false;
 
-          socket.onopen = () => statusDiv.textContent = 'Connected. Proctoring started.';
-          socket.onclose = () => {
-              console.log('[DEBUG] WebSocket connection closed - continuing proctoring without backend monitoring');
-              statusDiv.textContent = 'Proctoring active (monitoring offline).';
-              // Don't stop proctoring - continue with local security measures
-          };
-          socket.onerror = (error) => {
-              console.error('WebSocket error:', error);
-              console.log('[DEBUG] WebSocket error - continuing proctoring without backend monitoring');
-              statusDiv.textContent = 'Proctoring active (monitoring offline).';
-              // Don't stop proctoring - continue with local security measures
-          };
-          socket.onmessage = (event) => {
-              const data = JSON.parse(event.data);
-              console.log('Server response:', data);
-              let violationMessage = 'Pattern detected';
-              if (Array.isArray(data.violations) && data.violations.length > 0) {
-                  violationMessage = data.violations[0]?.message || 'Pattern detected';
-              }
-              statusDiv.textContent = data.is_compliant ? 'Status: Compliant' : `VIOLATION: ${violationMessage}`;
+        // Time-outside tracking (timestamp-driven)
+        let outsideStartTime = 0;
+        let timeOutsideInterval = null;
+        let totalTimeOutside = 0; // Add this to track cumulative time
 
-              if (data.trigger_pattern_upload && !isUploading) {
-                  handleViolationUpload();
-              }
-          };
-      }
+        // UI helpers
+        function updateTabSwitchDisplay() {
+            const el = document.getElementById('tab-count');
+            if (el) el.textContent = tabSwitchCount;
+        }
 
-      /**
-       * Initializes MediaRecorder with rolling buffer.
-       */
-      function initMediaRecorder(stream) {
-          console.log("[DEBUG] Initializing MediaRecorder.");
-          const options = { mimeType: 'video/webm; codecs=vp9' };
-          mediaRecorder = new MediaRecorder(stream, options);
+        function setTimeOutsideDisplay(seconds) {
+            const el = document.getElementById('time-outside');
+            if (el) el.textContent = seconds + 's';
+        }
 
-          mediaRecorder.ondataavailable = (event) => {
-              if (event.data.size > 0) {
-                  recordedChunks.push(event.data);
-              }
-              const maxBufferLength = ROLLING_BUFFER_SECONDS + 1;
-              while (recordedChunks.length > maxBufferLength) {
-                  recordedChunks.splice(1, 1);
-              }
-          };
+        // Safe increment respecting cooldown and isProctoring
+        function incrementTabSwitchCount(reason) {
+            if (typeof isProctoring !== 'undefined' && !isProctoring) return;
 
-          mediaRecorder.onstop = async () => {
-              console.log(`[DEBUG] MediaRecorder stopped. Buffer has ${recordedChunks.length} chunks.`);
-              if (recordedChunks.length === 0) {
-                  console.warn("[DEBUG] No video chunks recorded, skipping upload.");
-                  isUploading = false;
-                  if (isProctoring) mediaRecorder.start(1000);
-                  return;
-              }
+            const now = Date.now();
+            const timeSinceLastSwitch = now - lastFocusTime;
+            if (switchCooldownActive || timeSinceLastSwitch < 100) {
+                console.log("[DEBUG] Tab switch ignored - cooldown or too recent:", reason);
+                return;
+            }
 
-              const clipBlob = new Blob(recordedChunks, { type: 'video/webm' });
-              const formData = new FormData();
-              formData.append('file', clipBlob, `violation_${new Date().toISOString()}.webm`);
+            tabSwitchCount++;
+            switchCooldownActive = true;
+            console.log("[DEBUG] Tab switch detected (" + reason + ") - count now:", tabSwitchCount);
+            updateTabSwitchDisplay();
 
-              // Send contest data instead of problem data
-              formData.append('dmoj_user_id', window.dmojData.userId);
-              formData.append('dmoj_user_name', window.dmojData.username);
-              formData.append('dmoj_contest_name', window.dmojData.contestName);
+            setTimeout(() => { switchCooldownActive = false; }, 100);
+            if (typeof statusDiv !== 'undefined' && statusDiv) {
+                statusDiv.textContent = 'WARNING: Tab switches detected: ' + tabSwitchCount;
+            }
+        }
 
-              try {
-                  statusDiv.textContent = 'Uploading evidence...';
-                  const response = await fetch(`${API_BASE_URL}/upload-clip`, {
-                      method: 'POST',
-                      body: formData,
-                      headers: {
-                          'ngrok-skip-browser-warning': 'true'
-                      }
-                  });
-                  if (!response.ok) {
-                      const errorText = await response.text();
-                      throw new Error(`Server responded with ${response.status}: ${errorText}`);
-                  }
-                  const result = await response.json();
-                  console.log('Upload result:', result);
-                  statusDiv.textContent = 'Evidence uploaded. Resuming proctoring.';
-              } catch (error) {
-                  console.error('Error uploading clip:', error);
-                  statusDiv.textContent = 'Failed to upload evidence. See console for details.';
-              } finally {
-                  recordedChunks = [];
-                  isUploading = false;
-                  if (isProctoring) {
-                      mediaRecorder.start(1000);
-                  }
-              }
-          };
+        // Start outside timer (timestamp-based). If already running, do nothing.
+        function startOutsideTimer() {
+            if (timeOutsideInterval || outsideStartTime > 0) return; // Fixed condition
 
-          mediaRecorder.start(1000);
-          console.log(`[DEBUG] MediaRecorder started, maintaining a ${ROLLING_BUFFER_SECONDS}s buffer.`);
-      }
+            outsideStartTime = Date.now();
+            console.log("[DEBUG] outside timer started at:", outsideStartTime);
 
-      /**
-      * Handles violation upload trigger.
-      */
-      function handleViolationUpload() {
-          if (!mediaRecorder || mediaRecorder.state !== 'recording' || isUploading) return;
-          isUploading = true;
-          console.log('Pattern violation detected. Uploading existing buffer.');
-          statusDiv.textContent = 'Violation detected. Uploading evidence...';
-          mediaRecorder.stop();
-      }
+            // Update display immediately with current total
+            setTimeOutsideDisplay(totalTimeOutside);
 
-      function sendFrameForAnalysis() {
-          if (socket && socket.readyState === WebSocket.OPEN && video.videoWidth > 0 && video.videoHeight > 0) {
-              canvas.width = video.videoWidth;
-              canvas.height = video.videoHeight;
-              canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-              socket.send(canvas.toDataURL('image/jpeg', 0.5).split(',')[1]);
-          } else if (isProctoring) {
-              // Backend is offline but proctoring continues with local security measures
-              console.log("[DEBUG] Backend offline - proctoring continues with security lockdown only");
-          }
-      }
+            // More frequent updates for better responsiveness (every 100ms instead of 1000ms)
+            timeOutsideInterval = setInterval(() => {
+                const currentSessionTime = Math.floor((Date.now() - outsideStartTime) / 1000);
+                const displayTime = totalTimeOutside + currentSessionTime;
+                setTimeOutsideDisplay(displayTime);
+                console.log("[DEBUG] time-outside tick - session:", currentSessionTime, "total:", displayTime);
+            }, 100); // Changed from 1000ms to 100ms for more responsive updates
+        }
 
-      function stopProctoring() {
-          if (!isProctoring) return;
-          console.log("[DEBUG] Stopping proctoring session and cleaning up resources.");
-          isProctoring = false;
+        // Stop outside timer and add elapsed time to total
+        function stopOutsideTimer() {
+            if (timeOutsideInterval) {
+                clearInterval(timeOutsideInterval);
+                timeOutsideInterval = null;
+            }
 
-          // Disable proctoring lock
-          disableProctoringLock();
-          
-          // Reset tab switch counter
-          tabSwitchCount = 0;
-          updateTabSwitchDisplay();
-          console.log("[DEBUG] Tab switch counter reset");
+            if (outsideStartTime > 0) {
+                const elapsedMs = Date.now() - outsideStartTime;
+                const elapsedSecs = Math.floor(elapsedMs / 1000);
 
-          // Clear all intervals and stop all media
-          for (let i = 1; i < 99999; i++) window.clearInterval(i);
-          if (socket) socket.close();
-          if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
-          if (mediaStream) {
-              mediaStream.getTracks().forEach(track => track.stop());
-              mediaStream = null;
-          }
-          if (video.srcObject) {
-              video.srcObject = null;
-          }
+                // Add this session's time to the total
+                totalTimeOutside += elapsedSecs;
 
-          // Reset state variables
-          isFullscreenEnabled = false;
-          isCameraEnabled = false;
-          isShowingFullscreenModal = false;
-          isUserLeavingContest = false;
-          
-          // Hide modal if it's showing
-          if (fullscreenExitModal) {
-              fullscreenExitModal.style.display = 'none';
-          }
+                console.log("[DEBUG] outside timer stopped - session elapsed:", elapsedSecs, "new total:", totalTimeOutside);
 
-          // Remove proctoring class and restore normal UI
-          document.body.classList.remove('proctoring-active');
-          proctoringLayout.style.display = "none";
-          startupInfo.style.display = "block";
+                // Update display with new total immediately
+                setTimeOutsideDisplay(totalTimeOutside);
 
-          // Reset all steps
-          setStepState(steps.fullscreen, 'active');
-          setStepState(steps.camera, 'inactive');
-          setStepState(steps.contest, 'inactive');
+                // Reset start time
+                outsideStartTime = 0;
+            }
+        }
 
-          // Reset buttons
-          fullscreenBtn.textContent = 'Enter Fullscreen Mode';
-          fullscreenBtn.className = 'step-button btn-primary';
-          fullscreenBtn.disabled = false;
-          
-          cameraBtn.textContent = 'Enable Camera';
-          cameraBtn.className = 'step-button btn-primary';
-          cameraBtn.disabled = true;
-          
-          startBtn.textContent = '🎯 Start Proctored Contest';
-          startBtn.className = 'step-button btn-success';
-          startBtn.disabled = true;
-      }
-  });
-  {%- endraw -%}
+        // Enhanced event handlers with immediate timestamp capture
+        window.addEventListener('blur', function () {
+            if (typeof isProctoring !== 'undefined' && !isProctoring) return;
+
+            // Capture timestamp immediately for accuracy
+            const blurTimestamp = Date.now();
+            lastBlurTime = blurTimestamp;
+            isWindowFocused = false;
+            console.log("[DEBUG] Window blurred (lost focus) at:", blurTimestamp);
+
+            // Start timer immediately with the captured timestamp
+            if (!timeOutsideInterval && outsideStartTime === 0) {
+                outsideStartTime = blurTimestamp;
+                console.log("[DEBUG] outside timer started immediately at:", outsideStartTime);
+
+                // Start the interval for updates
+                timeOutsideInterval = setInterval(() => {
+                    const currentSessionTime = Math.floor((Date.now() - outsideStartTime) / 1000);
+                    const displayTime = totalTimeOutside + currentSessionTime;
+                    setTimeOutsideDisplay(displayTime);
+                }, 100);
+
+                // Immediate display update
+                setTimeOutsideDisplay(totalTimeOutside);
+            }
+
+            // Immediate increment on blur, but only once per blur cycle
+            if (!hasCountedSinceBlur) {
+                incrementTabSwitchCount('window blur - immediate count (supports Cmd+Tab)');
+                hasCountedSinceBlur = true;
+            }
+        });
+
+        window.addEventListener('focus', function () {
+            if (typeof isProctoring !== 'undefined' && !isProctoring) return;
+
+            // Capture timestamp immediately for accuracy
+            const focusTimestamp = Date.now();
+            const blurDuration = lastBlurTime > 0 ? focusTimestamp - lastBlurTime : 0;
+            lastFocusTime = focusTimestamp;
+
+            console.log("[DEBUG] Window focused (regained focus) at:", focusTimestamp, "blurDuration(ms):", blurDuration);
+
+            // Stop timer and calculate final time immediately
+            if (timeOutsideInterval) {
+                clearInterval(timeOutsideInterval);
+                timeOutsideInterval = null;
+            }
+
+            if (outsideStartTime > 0) {
+                const elapsedMs = focusTimestamp - outsideStartTime;
+                const elapsedSecs = Math.floor(elapsedMs / 1000);
+
+                // Add this session's time to the total
+                totalTimeOutside += elapsedSecs;
+
+                console.log("[DEBUG] outside timer stopped - session elapsed:", elapsedSecs, "new total:", totalTimeOutside);
+
+                // Update display immediately with final time
+                setTimeOutsideDisplay(totalTimeOutside);
+
+                outsideStartTime = 0;
+            }
+
+            // If blur didn't already count, count here for long absences
+            if (!hasCountedSinceBlur && !isWindowFocused && blurDuration > 500) {
+                incrementTabSwitchCount('focus regained after ' + blurDuration + 'ms');
+                hasCountedSinceBlur = true;
+            }
+
+            isWindowFocused = true;
+            hasCountedSinceBlur = false;
+        });
+
+        // Enhanced visibilitychange handler
+        document.addEventListener('visibilitychange', function () {
+            if (typeof isProctoring !== 'undefined' && !isProctoring) return;
+
+            const changeTimestamp = Date.now();
+
+            if (document.hidden) {
+                lastBlurTime = changeTimestamp;
+                isWindowFocused = false;
+                console.log("[DEBUG] Document hidden (visibilitychange) at:", changeTimestamp);
+
+                // Start timer immediately if not already running
+                if (!timeOutsideInterval && outsideStartTime === 0) {
+                    outsideStartTime = changeTimestamp;
+                    console.log("[DEBUG] outside timer started immediately at:", outsideStartTime);
+
+                    timeOutsideInterval = setInterval(() => {
+                        const currentSessionTime = Math.floor((Date.now() - outsideStartTime) / 1000);
+                        const displayTime = totalTimeOutside + currentSessionTime;
+                        setTimeOutsideDisplay(displayTime);
+                    }, 100);
+
+                    setTimeOutsideDisplay(totalTimeOutside);
+                }
+
+                if (!hasCountedSinceBlur) {
+                    incrementTabSwitchCount('visibility hidden - immediate count');
+                    hasCountedSinceBlur = true;
+                }
+            } else {
+                const blurDuration = lastBlurTime > 0 ? changeTimestamp - lastBlurTime : 0;
+                lastFocusTime = changeTimestamp;
+                console.log("[DEBUG] Document visible (visibilitychange) at:", changeTimestamp, "blurDuration(ms):", blurDuration);
+
+                // Stop timer immediately and calculate time
+                if (timeOutsideInterval) {
+                    clearInterval(timeOutsideInterval);
+                    timeOutsideInterval = null;
+                }
+
+                if (outsideStartTime > 0) {
+                    const elapsedMs = changeTimestamp - outsideStartTime;
+                    const elapsedSecs = Math.floor(elapsedMs / 1000);
+
+                    totalTimeOutside += elapsedSecs;
+
+                    console.log("[DEBUG] outside timer stopped - session elapsed:", elapsedSecs, "new total:", totalTimeOutside);
+                    setTimeOutsideDisplay(totalTimeOutside);
+
+                    outsideStartTime = 0;
+                }
+
+                if (!hasCountedSinceBlur && blurDuration > 500) {
+                    incrementTabSwitchCount('visibility visible after ' + blurDuration + 'ms');
+                    hasCountedSinceBlur = true;
+                }
+
+                isWindowFocused = true;
+                hasCountedSinceBlur = false;
+            }
+        });
+
+        // --- Core Proctoring Functions ---
+
+        /**
+         * Initializes the WebSocket connection.
+         */
+        function initWebSocket() {
+            // Test cloud backend connection
+            console.log("[DEBUG] Testing cloud backend connection to:", API_BASE_URL + "/upload-clip");
+
+            const wsUrl = API_BASE_URL.replace('http', 'ws') + '/ws';
+            console.log("[DEBUG] Initializing WebSocket to:", wsUrl);
+            socket = new WebSocket(wsUrl);
+
+            socket.onopen = () => statusDiv.textContent = 'Connected. Proctoring started.';
+            socket.onclose = () => {
+                console.log('[DEBUG] WebSocket connection closed - continuing proctoring without backend monitoring');
+                statusDiv.textContent = 'Proctoring active (monitoring offline).';
+                // Don't stop proctoring - continue with local security measures
+            };
+            socket.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                console.log('[DEBUG] WebSocket error - continuing proctoring without backend monitoring');
+                statusDiv.textContent = 'Proctoring active (monitoring offline).';
+                // Don't stop proctoring - continue with local security measures
+            };
+            socket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                console.log('Server response:', data);
+                let violationMessage = 'Pattern detected';
+                if (Array.isArray(data.violations) && data.violations.length > 0) {
+                    violationMessage = data.violations[0]?.message || 'Pattern detected';
+                }
+                statusDiv.textContent = data.is_compliant ? 'Status: Compliant' : 'VIOLATION: ' + violationMessage;
+
+                if (data.trigger_pattern_upload && !isUploading) {
+                    handleViolationUpload();
+                }
+            };
+        }
+
+        /**
+         * Initializes MediaRecorder with rolling buffer.
+         */
+        function initMediaRecorder(stream) {
+            console.log("[DEBUG] Initializing MediaRecorder.");
+            const options = { mimeType: 'video/webm; codecs=vp9' };
+            mediaRecorder = new MediaRecorder(stream, options);
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    recordedChunks.push(event.data);
+                }
+                const maxBufferLength = ROLLING_BUFFER_SECONDS + 1;
+                while (recordedChunks.length > maxBufferLength) {
+                    recordedChunks.splice(1, 1);
+                }
+            };
+
+            mediaRecorder.onstop = async () => {
+                console.log("[DEBUG] MediaRecorder stopped. Buffer has " + recordedChunks.length + " chunks.");
+                if (recordedChunks.length === 0) {
+                    console.warn("[DEBUG] No video chunks recorded, skipping upload.");
+                    isUploading = false;
+                    if (isProctoring) mediaRecorder.start(1000);
+                    return;
+                }
+
+                const clipBlob = new Blob(recordedChunks, { type: 'video/webm' });
+                const formData = new FormData();
+                formData.append('file', clipBlob, 'violation_' + new Date().toISOString() + '.webm');
+
+                // Send contest data instead of problem data
+                formData.append('dmoj_user_id', window.dmojData.userId);
+                formData.append('dmoj_user_name', window.dmojData.username);
+                formData.append('dmoj_contest_name', window.dmojData.contestName);
+
+                try {
+                    statusDiv.textContent = 'Uploading evidence...';
+                    const response = await fetch(API_BASE_URL + '/upload-clip', {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'ngrok-skip-browser-warning': 'true'
+                        }
+                    });
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        throw new Error('Server responded with ${response.status}: ${errorText}');
+                    }
+                    const result = await response.json();
+                    console.log('Upload result:', result);
+                    statusDiv.textContent = 'Evidence uploaded. Resuming proctoring.';
+                } catch (error) {
+                    console.error('Error uploading clip:', error);
+                    statusDiv.textContent = 'Failed to upload evidence. See console for details.';
+                } finally {
+                    recordedChunks = [];
+                    isUploading = false;
+                    if (isProctoring) {
+                        mediaRecorder.start(1000);
+                    }
+                }
+            };
+
+            mediaRecorder.start(1000);
+            console.log("[DEBUG] MediaRecorder started, maintaining a " + ROLLING_BUFFER_SECONDS + "s buffer.");
+        }
+
+        /**
+        * Handles violation upload trigger.
+        */
+        function handleViolationUpload() {
+            if (!mediaRecorder || mediaRecorder.state !== 'recording' || isUploading) return;
+            isUploading = true;
+            console.log('Pattern violation detected. Uploading existing buffer.');
+            statusDiv.textContent = 'Violation detected. Uploading evidence...';
+            mediaRecorder.stop();
+        }
+
+        function sendFrameForAnalysis() {
+            if (socket && socket.readyState === WebSocket.OPEN && video.videoWidth > 0 && video.videoHeight > 0) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+                socket.send(canvas.toDataURL('image/jpeg', 0.5).split(',')[1]);
+            } else if (isProctoring) {
+                // Backend is offline but proctoring continues with local security measures
+                console.log("[DEBUG] Backend offline - proctoring continues with security lockdown only");
+            }
+        }
+
+        function stopProctoring() {
+            if (!isProctoring) return;
+            console.log("[DEBUG] Stopping proctoring session and cleaning up resources.");
+            isProctoring = false;
+
+            // Disable proctoring lock
+            disableProctoringLock();
+
+            // Reset tab switch and time outside counters
+            tabSwitchCount = 0;
+            totalTimeOutside = 0;
+            if (timeOutsideInterval) {
+                clearInterval(timeOutsideInterval);
+                timeOutsideInterval = null;
+            }
+            updateTabSwitchDisplay();
+            const timeOutsideElement = document.getElementById('time-outside');
+            if (timeOutsideElement) {
+                timeOutsideElement.textContent = '0s';
+            }
+            console.log("[DEBUG] Tab switch and time outside counters reset");
+
+            // Clear all intervals and stop all media
+            for (let i = 1; i < 99999; i++) window.clearInterval(i);
+            if (socket) socket.close();
+            if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
+            }
+            if (video.srcObject) {
+                video.srcObject = null;
+            }
+
+            // Reset state variables
+            isFullscreenEnabled = false;
+            isCameraEnabled = false;
+            isShowingFullscreenModal = false;
+            isUserLeavingContest = false;
+
+            // Hide modal if it's showing
+            if (fullscreenExitModal) {
+                fullscreenExitModal.style.display = 'none';
+            }
+
+            // Remove proctoring class and restore normal UI
+            document.body.classList.remove('proctoring-active');
+            proctoringLayout.style.display = "none";
+            startupInfo.style.display = "block";
+
+            // Reset all steps
+            setStepState(steps.fullscreen, 'active');
+            setStepState(steps.camera, 'inactive');
+            setStepState(steps.contest, 'inactive');
+
+            // Reset buttons
+            fullscreenBtn.textContent = 'Enter Fullscreen Mode';
+            fullscreenBtn.className = 'step-button btn-primary';
+            fullscreenBtn.disabled = false;
+
+            cameraBtn.textContent = 'Enable Camera';
+            cameraBtn.className = 'step-button btn-primary';
+            cameraBtn.disabled = true;
+
+            startBtn.textContent = '🎯 Start Proctored Contest';
+            startBtn.className = 'step-button btn-success';
+            startBtn.disabled = true;
+        }
+    });
+
 </script>
 {% endblock %}
