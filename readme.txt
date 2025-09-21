@@ -37,5 +37,16 @@ python manage.py runserver 0.0.0.0:8000
  (this is given that you have python3 installed in the venv)
  
  
+create an app password using this link(will be needed for sending mails):https://myaccount.google.com/apppasswords
 
+change your local settings lines to the following:
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_USE_TLS = True
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_HOST_USER = 'adabalatrishal@gmail.com'
+EMAIL_HOST_PASSWORD = 'your 16 char password without spaces'
+EMAIL_PORT = 587
+
+dont forget to change the paths/directories in trial_script.py and judge.yml
 
