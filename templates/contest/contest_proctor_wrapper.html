@@ -625,11 +625,9 @@
 
         function handleWindowBlur() {
             if (isProctoring) {
-                console.log("[WARNING] Window lost focus during proctoring session");
-                // Immediately refocus the window
-                setTimeout(() => {
-                    window.focus();
-                }, 100);
+                console.log("[DEBUG] Window lost focus during proctoring session - allowing iframe interactions");
+                // Don't force refocus - let iframe interactions work normally
+                // The tab switch detection will handle genuine violations
             }
         }
 
@@ -986,6 +984,10 @@
                 updateTabSwitchDisplay();
                 console.log("[DEBUG] Tab switch counter initialized");
 
+                // Initialize iframe monitoring for smart tab switch detection
+                setupIframeMonitoring();
+                console.log("[DEBUG] Iframe monitoring initialized");
+
                 // Initialize fullscreen monitoring
                 isUserLeavingContest = false;
 
@@ -1240,7 +1242,7 @@
             }
         });
 
-        // --- Tab Switching Detection for Proctoring ---
+        // --- Tab Switching Detection for Proctoring (Iframe-Aware) ---
         let tabSwitchCount = 0;
         let lastBlurTime = 0;
         let lastFocusTime = Date.now();
@@ -1251,7 +1253,15 @@
         // Time-outside tracking (timestamp-driven)
         let outsideStartTime = 0;
         let timeOutsideInterval = null;
-        let totalTimeOutside = 0; // Add this to track cumulative time
+        let totalTimeOutside = 0;
+
+        // Iframe tracking variables
+        let isIframeFocused = false;
+        let iframeBlurTime = 0;
+        let mainWindowHasFocus = true;
+        let recentIframeNavigation = false;
+        let lastUserActivity = Date.now();
+        let userActiveInPage = true;
 
         // UI helpers
         function updateTabSwitchDisplay() {
@@ -1264,7 +1274,43 @@
             if (el) el.textContent = seconds + 's';
         }
 
-        // Safe increment respecting cooldown and isProctoring
+        // Track user activity on the page
+        function trackUserActivity() {
+            lastUserActivity = Date.now();
+            userActiveInPage = true;
+        }
+
+        // Check if user is genuinely outside the website (not just iframe navigation)
+        function isGenuineTabSwitch() {
+            // If there was recent iframe navigation, don't count as tab switch
+            if (recentIframeNavigation) {
+                console.log("[DEBUG] Ignoring - recent iframe navigation detected");
+                return false;
+            }
+            
+            // If user was very recently active (within 300ms), be more lenient
+            const timeSinceActivity = Date.now() - lastUserActivity;
+            if (timeSinceActivity < 300) { // Reduced to 300ms
+                console.log("[DEBUG] Ignoring - very recent user activity detected");
+                return false;
+            }
+            
+            // If document is hidden, it's likely a genuine tab switch
+            if (document.hidden) {
+                console.log("[DEBUG] Genuine tab switch - document is hidden");
+                return true;
+            }
+            
+            // If both main window and document lost focus, it's likely a genuine switch
+            if (!mainWindowHasFocus && !document.hasFocus()) {
+                console.log("[DEBUG] Genuine tab switch - window and document lost focus");
+                return true;
+            }
+            
+            return false;
+        }
+
+        // Safe increment respecting cooldown and genuine tab switch detection
         function incrementTabSwitchCount(reason) {
             if (typeof isProctoring !== 'undefined' && !isProctoring) return;
 
@@ -1272,6 +1318,12 @@
             const timeSinceLastSwitch = now - lastFocusTime;
             if (switchCooldownActive || timeSinceLastSwitch < 100) {
                 console.log("[DEBUG] Tab switch ignored - cooldown or too recent:", reason);
+                return;
+            }
+
+            // Only count if it's a genuine tab switch (not iframe navigation)
+            if (!isGenuineTabSwitch()) {
+                console.log("[DEBUG] Tab switch ignored - iframe navigation:", reason);
                 return;
             }
 
@@ -1286,26 +1338,33 @@
             }
         }
 
-        // Start outside timer (timestamp-based). If already running, do nothing.
+        // Start outside timer for genuine tab switches
         function startOutsideTimer() {
-            if (timeOutsideInterval || outsideStartTime > 0) return; // Fixed condition
+            if (timeOutsideInterval || outsideStartTime > 0) return;
+            
+            // Don't start timer if there was very recent iframe navigation
+            if (recentIframeNavigation) {
+                console.log("[DEBUG] Not starting timer - recent iframe navigation");
+                return;
+            }
 
-            outsideStartTime = Date.now();
-            console.log("[DEBUG] outside timer started at:", outsideStartTime);
+            // If document is hidden, always start timer (it's a genuine tab switch)
+            if (document.hidden || !document.hasFocus()) {
+                outsideStartTime = Date.now();
+                console.log("[DEBUG] outside timer started at:", outsideStartTime);
 
-            // Update display immediately with current total
-            setTimeOutsideDisplay(totalTimeOutside);
+                setTimeOutsideDisplay(totalTimeOutside);
 
-            // More frequent updates for better responsiveness (every 100ms instead of 1000ms)
-            timeOutsideInterval = setInterval(() => {
-                const currentSessionTime = Math.floor((Date.now() - outsideStartTime) / 1000);
-                const displayTime = totalTimeOutside + currentSessionTime;
-                setTimeOutsideDisplay(displayTime);
-                console.log("[DEBUG] time-outside tick - session:", currentSessionTime, "total:", displayTime);
-            }, 100); // Changed from 1000ms to 100ms for more responsive updates
+                timeOutsideInterval = setInterval(() => {
+                    const currentSessionTime = Math.floor((Date.now() - outsideStartTime) / 1000);
+                    const displayTime = totalTimeOutside + currentSessionTime;
+                    setTimeOutsideDisplay(displayTime);
+                    console.log("[DEBUG] time-outside tick - session:", currentSessionTime, "total:", displayTime);
+                }, 100);
+            }
         }
 
-        // Stop outside timer and add elapsed time to total
+        // Stop outside timer
         function stopOutsideTimer() {
             if (timeOutsideInterval) {
                 clearInterval(timeOutsideInterval);
@@ -1316,63 +1375,187 @@
                 const elapsedMs = Date.now() - outsideStartTime;
                 const elapsedSecs = Math.floor(elapsedMs / 1000);
 
-                // Add this session's time to the total
                 totalTimeOutside += elapsedSecs;
 
                 console.log("[DEBUG] outside timer stopped - session elapsed:", elapsedSecs, "new total:", totalTimeOutside);
-
-                // Update display with new total immediately
                 setTimeOutsideDisplay(totalTimeOutside);
 
-                // Reset start time
                 outsideStartTime = 0;
             }
         }
 
-        // Enhanced event handlers with immediate timestamp capture
+        // Setup iframe monitoring
+        function setupIframeMonitoring() {
+            const contestIframe = document.getElementById('dmoj-contest-frame');
+            
+            if (contestIframe) {
+                console.log("[DEBUG] Setting up iframe monitoring");
+                
+                // Monitor iframe interactions to detect user activity
+                contestIframe.addEventListener('mousedown', function() {
+                    console.log("[DEBUG] User clicking in iframe - maintaining focus status");
+                    isIframeFocused = true;
+                    trackUserActivity();
+                    stopOutsideTimer();
+                });
+                
+                contestIframe.addEventListener('mousemove', function() {
+                    trackUserActivity();
+                    if (!isIframeFocused) {
+                        isIframeFocused = true;
+                        stopOutsideTimer();
+                    }
+                });
+                
+                contestIframe.addEventListener('mouseenter', function() {
+                    console.log("[DEBUG] Mouse entered iframe area");
+                    trackUserActivity();
+                    // Assume user is interacting with iframe content
+                    if (!isIframeFocused) {
+                        isIframeFocused = true;
+                        stopOutsideTimer();
+                    }
+                });
+                
+                // Monitor iframe load events to detect navigation
+                contestIframe.addEventListener('load', function() {
+                    console.log("[DEBUG] Iframe navigation detected - setting flag");
+                    recentIframeNavigation = true;
+                    
+                    // Clear the flag after a short delay
+                    setTimeout(() => {
+                        recentIframeNavigation = false;
+                        console.log("[DEBUG] Iframe navigation flag cleared");
+                    }, 1000); // Increased to 1000ms window to ignore blur/focus events after iframe navigation
+                    
+                    try {
+                        const iframeWindow = contestIframe.contentWindow;
+                        const iframeDocument = contestIframe.contentDocument;
+                        
+                        if (iframeWindow && iframeDocument) {
+                            console.log("[DEBUG] Setting up iframe focus monitoring");
+                            
+                            // Monitor iframe window focus/blur
+                            iframeWindow.addEventListener('focus', function() {
+                                isIframeFocused = true;
+                                console.log("[DEBUG] Iframe gained focus");
+                                stopOutsideTimer();
+                            });
+                            
+                            iframeWindow.addEventListener('blur', function() {
+                                // Don't immediately set to false - use a delay to handle quick focus changes
+                                setTimeout(() => {
+                                    // Check if focus moved to another element within the iframe
+                                    try {
+                                        const activeElement = iframeDocument.activeElement;
+                                        if (activeElement && activeElement !== iframeDocument.body) {
+                                            console.log("[DEBUG] Focus moved within iframe, maintaining iframe focus status");
+                                            return; // Don't mark as blurred if focus is still within iframe
+                                        }
+                                    } catch (e) {
+                                        // Cross-origin or other access error, proceed with blur handling
+                                    }
+                                    
+                                    isIframeFocused = false;
+                                    iframeBlurTime = Date.now();
+                                    console.log("[DEBUG] Iframe lost focus");
+                                    
+                                    // Start timer only if main window also doesn't have focus
+                                    if (!mainWindowHasFocus && !document.hasFocus()) {
+                                        setTimeout(() => {
+                                            if (!isIframeFocused && !mainWindowHasFocus) {
+                                                startOutsideTimer();
+                                            }
+                                        }, 100);
+                                    }
+                                }, 50); // Small delay to handle focus transitions
+                            });
+                            
+                            // Monitor iframe visibility changes
+                            iframeDocument.addEventListener('visibilitychange', function() {
+                                if (iframeDocument.hidden) {
+                                    isIframeFocused = false;
+                                    console.log("[DEBUG] Iframe hidden");
+                                } else {
+                                    isIframeFocused = true;
+                                    console.log("[DEBUG] Iframe visible");
+                                    stopOutsideTimer();
+                                }
+                            });
+                        }
+                    } catch (e) {
+                        console.log("[DEBUG] Cannot access iframe content (cross-origin):", e.message);
+                        // For cross-origin iframes, we'll rely on main window events only
+                    }
+                });
+            }
+        }
+
+        // Add simple keyboard-based tab switch detection as fallback
+        document.addEventListener('keydown', function(event) {
+            if (typeof isProctoring !== 'undefined' && !isProctoring) return;
+            
+            // Detect Alt+Tab or Cmd+Tab
+            if ((event.altKey && event.key === 'Tab') || (event.metaKey && event.key === 'Tab')) {
+                console.log("[DEBUG] Alt+Tab or Cmd+Tab detected");
+                if (!hasCountedSinceBlur && !recentIframeNavigation) {
+                    incrementTabSwitchCount('Alt+Tab or Cmd+Tab key combination');
+                    hasCountedSinceBlur = true;
+                    startOutsideTimer();
+                }
+            }
+        });
+
+        // Enhanced main window event handlers
         window.addEventListener('blur', function () {
             if (typeof isProctoring !== 'undefined' && !isProctoring) return;
 
-            // Capture timestamp immediately for accuracy
             const blurTimestamp = Date.now();
             lastBlurTime = blurTimestamp;
+            mainWindowHasFocus = false;
             isWindowFocused = false;
-            console.log("[DEBUG] Window blurred (lost focus) at:", blurTimestamp);
+            console.log("[DEBUG] Main window blurred at:", blurTimestamp);
 
-            // Start timer immediately with the captured timestamp
-            if (!timeOutsideInterval && outsideStartTime === 0) {
-                outsideStartTime = blurTimestamp;
-                console.log("[DEBUG] outside timer started immediately at:", outsideStartTime);
+            // Use shorter delay but still allow iframe interactions
+            setTimeout(() => {
+                // Start timer and count if not recent iframe navigation
+                if (!recentIframeNavigation && !timeOutsideInterval && outsideStartTime === 0) {
+                    // Check if we genuinely lost focus or document is hidden
+                    if (!document.hasFocus() || document.hidden) {
+                        outsideStartTime = blurTimestamp;
+                        console.log("[DEBUG] outside timer started at:", outsideStartTime);
 
-                // Start the interval for updates
-                timeOutsideInterval = setInterval(() => {
-                    const currentSessionTime = Math.floor((Date.now() - outsideStartTime) / 1000);
-                    const displayTime = totalTimeOutside + currentSessionTime;
-                    setTimeOutsideDisplay(displayTime);
-                }, 100);
+                        timeOutsideInterval = setInterval(() => {
+                            const currentSessionTime = Math.floor((Date.now() - outsideStartTime) / 1000);
+                            const displayTime = totalTimeOutside + currentSessionTime;
+                            setTimeOutsideDisplay(displayTime);
+                        }, 100);
 
-                // Immediate display update
-                setTimeOutsideDisplay(totalTimeOutside);
-            }
+                        setTimeOutsideDisplay(totalTimeOutside);
+                    }
+                }
 
-            // Immediate increment on blur, but only once per blur cycle
-            if (!hasCountedSinceBlur) {
-                incrementTabSwitchCount('window blur - immediate count (supports Cmd+Tab)');
-                hasCountedSinceBlur = true;
-            }
+                if (!hasCountedSinceBlur && !recentIframeNavigation) {
+                    // Check if we genuinely lost focus or document is hidden
+                    if (!document.hasFocus() || document.hidden) {
+                        incrementTabSwitchCount('window blur - genuine tab switch');
+                        hasCountedSinceBlur = true;
+                    }
+                }
+            }, 100); // Reduced delay for better responsiveness
         });
 
         window.addEventListener('focus', function () {
             if (typeof isProctoring !== 'undefined' && !isProctoring) return;
 
-            // Capture timestamp immediately for accuracy
             const focusTimestamp = Date.now();
             const blurDuration = lastBlurTime > 0 ? focusTimestamp - lastBlurTime : 0;
             lastFocusTime = focusTimestamp;
+            mainWindowHasFocus = true;
 
-            console.log("[DEBUG] Window focused (regained focus) at:", focusTimestamp, "blurDuration(ms):", blurDuration);
+            console.log("[DEBUG] Main window focused at:", focusTimestamp, "blurDuration(ms):", blurDuration);
 
-            // Stop timer and calculate final time immediately
+            // Always stop timer when main window regains focus
             if (timeOutsideInterval) {
                 clearInterval(timeOutsideInterval);
                 timeOutsideInterval = null;
@@ -1382,21 +1565,21 @@
                 const elapsedMs = focusTimestamp - outsideStartTime;
                 const elapsedSecs = Math.floor(elapsedMs / 1000);
 
-                // Add this session's time to the total
                 totalTimeOutside += elapsedSecs;
 
                 console.log("[DEBUG] outside timer stopped - session elapsed:", elapsedSecs, "new total:", totalTimeOutside);
-
-                // Update display immediately with final time
                 setTimeOutsideDisplay(totalTimeOutside);
 
                 outsideStartTime = 0;
             }
 
-            // If blur didn't already count, count here for long absences
+            // Count focus regain only if it was a genuine absence
             if (!hasCountedSinceBlur && !isWindowFocused && blurDuration > 500) {
-                incrementTabSwitchCount('focus regained after ' + blurDuration + 'ms');
-                hasCountedSinceBlur = true;
+                // Check if this was a genuine tab switch (not iframe navigation)
+                if (!recentIframeNavigation && (iframeBlurTime === 0 || Math.abs(lastBlurTime - iframeBlurTime) > 100)) {
+                    incrementTabSwitchCount('focus regained after genuine absence: ' + blurDuration + 'ms');
+                    hasCountedSinceBlur = true;
+                }
             }
 
             isWindowFocused = true;
@@ -1411,11 +1594,12 @@
 
             if (document.hidden) {
                 lastBlurTime = changeTimestamp;
+                mainWindowHasFocus = false;
                 isWindowFocused = false;
-                console.log("[DEBUG] Document hidden (visibilitychange) at:", changeTimestamp);
+                console.log("[DEBUG] Main document hidden at:", changeTimestamp);
 
-                // Start timer immediately if not already running
-                if (!timeOutsideInterval && outsideStartTime === 0) {
+                // When document is hidden, it's usually a genuine tab switch
+                if (!recentIframeNavigation && !timeOutsideInterval && outsideStartTime === 0) {
                     outsideStartTime = changeTimestamp;
                     console.log("[DEBUG] outside timer started immediately at:", outsideStartTime);
 
@@ -1428,16 +1612,17 @@
                     setTimeOutsideDisplay(totalTimeOutside);
                 }
 
-                if (!hasCountedSinceBlur) {
-                    incrementTabSwitchCount('visibility hidden - immediate count');
+                if (!hasCountedSinceBlur && !recentIframeNavigation) {
+                    incrementTabSwitchCount('visibility hidden - genuine tab switch');
                     hasCountedSinceBlur = true;
                 }
             } else {
                 const blurDuration = lastBlurTime > 0 ? changeTimestamp - lastBlurTime : 0;
                 lastFocusTime = changeTimestamp;
-                console.log("[DEBUG] Document visible (visibilitychange) at:", changeTimestamp, "blurDuration(ms):", blurDuration);
+                mainWindowHasFocus = true;
+                console.log("[DEBUG] Main document visible at:", changeTimestamp, "blurDuration(ms):", blurDuration);
 
-                // Stop timer immediately and calculate time
+                // Always stop timer when document becomes visible
                 if (timeOutsideInterval) {
                     clearInterval(timeOutsideInterval);
                     timeOutsideInterval = null;
@@ -1456,8 +1641,11 @@
                 }
 
                 if (!hasCountedSinceBlur && blurDuration > 500) {
-                    incrementTabSwitchCount('visibility visible after ' + blurDuration + 'ms');
-                    hasCountedSinceBlur = true;
+                    // Check if this was a genuine tab switch
+                    if (!recentIframeNavigation && (iframeBlurTime === 0 || Math.abs(lastBlurTime - iframeBlurTime) > 100)) {
+                        incrementTabSwitchCount('visibility visible after genuine absence: ' + blurDuration + 'ms');
+                        hasCountedSinceBlur = true;
+                    }
                 }
 
                 isWindowFocused = true;
