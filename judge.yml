@@ -1,7 +1,7 @@
-id: judge_test  # <-- Judge name matching your admin panel
-key: Ci9+rYdd92y9rRa9uWKCDImDLTeGT+UnbMYHanYqz9D7v55ieXOc1QHQraQDOqaT41d24T1Gx3Zi2+cfxS38+nnl8lvOvv+lGzwW
+id: Trishal  # <-- Judge name matching your admin panel
+key: mH2xhuvVabngpqYGVlhG5XjV4frlDCpY/EpIsYlqKkLf+I/t+n/0BFcUxzHuXixWGdXiWSibZqqH4WV67/nlsGXFk6inq2LaIHLT
 problem_storage_globs:
-  - /home/lalith/Desktop/Test_demoj_1/site/problems/*  # <-- Matches where your problems are stored
+  - /home/trishal/HPE_CPP_GRP2_SITE/problems/*  # <-- Matches where your problems are stored
 
 runtime:
   awk: /usr/bin/mawk
@@ -35,7 +35,7 @@ runtime:
   php: /usr/bin/php
   pypy: /usr/bin/pypy
   pypy3: /usr/bin/pypy3
-  python3: /home/lalith/Desktop/Test-Dmoj/dmojsite/bin/python3
+  python3: /home/trishal/dmojsite/bin/python3
   racket: /usr/bin/racket
   raco: /usr/bin/raco
   sed: /usr/bin/sed
