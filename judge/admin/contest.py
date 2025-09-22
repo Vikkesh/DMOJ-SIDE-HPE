@@ -13,12 +13,33 @@ from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _, ngettext
 from django.views.decorators.http import require_POST
 from reversion.admin import VersionAdmin
-
 from judge.models import Class, Contest, ContestProblem, ContestSubmission, Profile, Rating, Submission
 from judge.ratings import rate_contest
 from judge.utils.views import NoBatchDeleteMixin
 from judge.widgets import AdminAceWidget, AdminHeavySelect2MultipleWidget, AdminHeavySelect2Widget, \
     AdminMartorWidget, AdminSelect2MultipleWidget, AdminSelect2Widget
+import csv
+from django.core.mail import send_mail
+from django.contrib.auth.models import User
+from judge.models import Profile
+from django import forms
+from django.contrib.auth.models import User
+from django.core.mail import send_mail
+from django.db import transaction
+from django.conf import settings
+from django.utils.crypto import get_random_string
+
+
+
+class ContestForm(ModelForm):
+    emails_csv = forms.FileField(
+        required=False,
+        help_text=_("Upload a CSV of email addresses to auto-create accounts and add them to this contest."),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super(ContestForm, self).__init__(*args, **kwargs)
+        ...
 
 
 class AdminHeavySelect2Widget(AdminHeavySelect2Widget):
@@ -79,6 +100,10 @@ class ContestProblemInline(SortableInlineAdminMixin, admin.TabularInline):
 
 
 class ContestForm(ModelForm):
+    emails_csv = forms.FileField(
+        required=False,
+        help_text=_("Upload a CSV of email addresses to auto-create accounts and add them to this contest."),
+    )
     def __init__(self, *args, **kwargs):
         super(ContestForm, self).__init__(*args, **kwargs)
         if 'rate_exclude' in self.fields:
@@ -125,7 +150,7 @@ class ContestAdmin(NoBatchDeleteMixin, SortableAdminBase, VersionAdmin):
         (_('Rating'), {'fields': ('is_rated', 'rate_all', 'rating_floor', 'rating_ceiling',
                                   'performance_ceiling_override', 'rate_exclude')}),
         (_('Access'), {'fields': ('access_code', 'private_contestants', 'organizations', 'classes',
-                                  'join_organizations', 'view_contest_scoreboard', 'view_contest_submissions')}),
+                                  'join_organizations', 'view_contest_scoreboard', 'view_contest_submissions','emails_csv',)}),
         (_('Justice'), {'fields': ('banned_users',)}),
     )
     list_display = ('key', 'name', 'is_visible', 'is_rated', 'locked_after', 'start_time', 'end_time', 'time_limit',
@@ -326,6 +351,81 @@ class ContestAdmin(NoBatchDeleteMixin, SortableAdminBase, VersionAdmin):
         ).distinct()
         form.base_fields['classes'].queryset = Class.get_visible_classes(request.user)
         return form
+    def save_model(self, request, obj, form, change):
+        # ------------------------------
+        # Step 1: Original admin logic
+        # ------------------------------
+        if form.changed_data:
+            if 'private_contestants' in form.changed_data:
+                obj.is_private = bool(form.cleaned_data['private_contestants'])
+            if 'organizations' in form.changed_data or 'classes' in form.changed_data:
+                obj.is_organization_private = bool(form.cleaned_data['organizations'] or form.cleaned_data['classes'])
+            if 'join_organizations' in form.cleaned_data:
+                obj.limit_join_organizations = bool(form.cleaned_data['join_organizations'])
+
+        if form.cleaned_data.get('is_visible') and not request.user.has_perm('judge.change_contest_visibility'):
+            if not obj.is_private and not obj.is_organization_private:
+                raise PermissionDenied
+            if not request.user.has_perm('judge.create_private_contest'):
+                raise PermissionDenied
+
+        super().save_model(request, obj, form, change)
+
+        # ------------------------------
+        # Step 2: Rescoring logic
+        # ------------------------------
+        self._rescored = False
+        if form.changed_data and any(f in form.changed_data for f in ('format_config', 'format_name')):
+            self._rescore(obj.key)
+            self._rescored = True
+
+        if form.changed_data and 'locked_after' in form.changed_data:
+            self.set_locked_after(obj, form.cleaned_data['locked_after'])
+
+        # ------------------------------
+        # Step 3: CSV / User creation / Email / Add to contest
+        # ------------------------------
+        csv_file = form.cleaned_data.get('emails_csv')
+        csv_file = form.cleaned_data.get('emails_csv')
+        if csv_file:
+            import csv
+            from django.contrib.auth.models import User
+            from django.utils.crypto import get_random_string
+            from django.core.mail import send_mail
+            from judge.models import Profile, ContestParticipation
+
+            decoded_file = csv_file.read().decode('utf-8').splitlines()
+            reader = csv.reader(decoded_file)
+            next(reader, None)  # skip header if present
+
+            for row in reader:
+                email = row[0].strip()
+                username = row[1].strip() if len(row) > 1 else email.split('@')[0]
+
+                user, created = User.objects.get_or_create(username=username, defaults={'email': email})
+                if created:
+                    password = get_random_string(10)
+                    user.set_password(password)
+                    user.save()
+
+                    try:
+                        send_mail(
+                            subject='Contest Credentials',
+                            message=f'UserID: {user.username}\nPassword: {password}',
+                            from_email='fieryvikkesh@gmail.com',
+                            recipient_list=[user.email],
+                            fail_silently=False,
+                        )
+                    except Exception as e:
+                        print(f"Failed to send email to {email}: {e}")
+
+                # Instead of adding to obj.participants, create a ContestParticipation
+                profile, _ = Profile.objects.get_or_create(user=user)
+                ContestParticipation.objects.get_or_create(contest=obj, user=profile)
+
+        obj.save()
+
+
 
 
 class ContestParticipationForm(ModelForm):
