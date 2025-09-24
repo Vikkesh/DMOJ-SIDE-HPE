@@ -7,3 +7,6 @@ INFO 2025-09-22 05:13:49,392 judge_handler Judge authenticated: ('172.23.64.1', 
 INFO 2025-09-22 05:13:49,392 judge_list Minimum tier changed from None to 1
 INFO 2025-09-22 05:14:14,630 judge_list Minimum tier changed from 1 to None
 INFO 2025-09-22 05:14:14,639 judge_handler Judge disconnected from: ('172.23.64.1', 61140) with name firstjudge
+INFO 2025-09-24 09:14:34,256 daemon Exiting due to SIGINT
+INFO 2025-09-24 10:21:42,106 daemon Exiting due to SIGINT
+INFO 2025-09-24 11:02:55,213 daemon Exiting due to SIGINT

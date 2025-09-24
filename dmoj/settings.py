@@ -247,6 +247,16 @@ else:
                     ],
                 },
                 ('flatpages.FlatPage', 'fa-file-text-o'),
+                {
+                    'model': 'judge.BulkEmailCampaign',
+                    'icon': 'fa-envelope',
+                    'name': 'Emailing',
+                    'children': [
+                        'judge.EmailTemplate',
+                        'judge.EmailRecipient', 
+                        'judge.EmailLog',
+                    ],
+                },
                 ('judge.MiscConfig', 'fa-question-circle'),
             ],
             'dashboard': {
