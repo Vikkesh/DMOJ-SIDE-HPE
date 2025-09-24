@@ -54,6 +54,16 @@
 {% endblock %}
 
 {% block title_row %}
+    <script>
+        // If this page is loaded inside an iframe, notify the parent.
+        if (window.parent !== window) {
+            // Notify the parent wrapper that this page has loaded.
+            window.parent.postMessage(
+                { proctoringPage: "problem_detail" },
+                window.location.origin
+            );
+        }
+    </script>
     <div class="problem-title">
         {% if request.user.is_authenticated %}
             {% if problem.id in completed_problem_ids %}

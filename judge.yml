@@ -1,0 +1,12 @@
+id: firstjudge
+key: "PV8xe+ADPphD7O7my7ApH3D2/6uIRAVjJXzzfVTSD0e9kDCUxbqw5bpXj9p6DsE56XW6qvx1FIfuZYPeU8RjdQWp4poA/Phg4kBW"
+bridged_judge: true
+isolated: false
+
+runtimes:
+  - type: autoconf
+
+problem_storage_globs:
+  - /problems/**/
+
+logging_level: DEBUG
