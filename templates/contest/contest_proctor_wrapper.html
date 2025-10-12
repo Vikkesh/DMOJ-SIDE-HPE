@@ -1,3 +1,5 @@
+
+
 {% extends "base.html" %}
 {% block title %}{{ title }}{% endblock %}
 {% block body %}
@@ -395,9 +397,280 @@
     window.csrfToken = "{{ csrf_token }}";
 </script>
 
-<script>
+    <script>
+        // Improved sliding window implementation for video recording
+        class SlidingVideoBuffer {
+            constructor(maxDurationSeconds = 20, chunkIntervalMs = 1000) {
+                this.maxDuration = maxDurationSeconds * 1000; // Convert to milliseconds
+                this.chunkInterval = chunkIntervalMs;
+                this.chunks = [];
+                this.mediaRecorder = null;
+                this.isRecording = false;
+            }
 
-    // Simple immediate execution to test
+            initializeRecorder(stream, onViolationCallback) {
+                const options = { 
+                    mimeType: this.getSupportedMimeType(),
+                    videoBitsPerSecond: 1000000 // 1 Mbps for reasonable quality/size balance
+                };
+                
+                this.mediaRecorder = new MediaRecorder(stream, options);
+                
+                this.mediaRecorder.ondataavailable = (event) => {
+                    if (event.data && event.data.size > 0) {
+                        this.addChunk({
+                            data: event.data,
+                            timestamp: Date.now(),
+                            size: event.data.size
+                        });
+                    }
+                };
+
+                this.mediaRecorder.onstop = async () => {
+                    if (onViolationCallback) {
+                        const videoBlob = this.createVideoBlob();
+                        await onViolationCallback(videoBlob);
+                    }
+                    
+                    // Restart recording if still active
+                    if (this.isRecording) {
+                        setTimeout(() => {
+                            if (this.isRecording && this.mediaRecorder.state === 'inactive') {
+                                this.mediaRecorder.start(this.chunkInterval);
+                            }
+                        }, 100);
+                    }
+                };
+
+                this.mediaRecorder.onerror = (event) => {
+                    console.error('[Buffer] MediaRecorder error:', event.error);
+                };
+            }
+
+            getSupportedMimeType() {
+                const types = [
+                    'video/webm; codecs=vp9',
+                    'video/webm; codecs=vp8',
+                    'video/webm',
+                    'video/mp4'
+                ];
+                
+                for (const type of types) {
+                    if (MediaRecorder.isTypeSupported(type)) {
+                        return type;
+                    }
+                }
+                return 'video/webm'; // Fallback
+            }
+
+            addChunk(chunkInfo) {
+                this.chunks.push(chunkInfo);
+                this.maintainSlidingWindow();
+                
+                // Log buffer status periodically
+                if (this.chunks.length % 5 === 0) {
+                    const totalSize = this.chunks.reduce((sum, chunk) => sum + chunk.size, 0);
+                    const duration = this.getBufferDuration();
+                    console.log(`[Buffer] ${this.chunks.length} chunks, ${(totalSize/1024/1024).toFixed(2)}MB, ${(duration/1000).toFixed(1)}s`);
+                }
+            }
+
+            maintainSlidingWindow() {
+                const now = Date.now();
+                const cutoffTime = now - this.maxDuration;
+                
+                // Remove chunks older than maxDuration
+                let removedCount = 0;
+                while (this.chunks.length > 0 && this.chunks[0].timestamp < cutoffTime) {
+                    const removedChunk = this.chunks.shift();
+                    // Help with garbage collection
+                    if (removedChunk.data) {
+                        removedChunk.data = null;
+                    }
+                    removedCount++;
+                }
+                
+                if (removedCount > 0) {
+                    console.log(`[Buffer] Removed ${removedCount} old chunks`);
+                }
+
+                // Also maintain a reasonable maximum chunk count as backup
+                const maxChunks = Math.ceil(this.maxDuration / this.chunkInterval) + 2;
+                while (this.chunks.length > maxChunks) {
+                    const removedChunk = this.chunks.shift();
+                    if (removedChunk.data) {
+                        removedChunk.data = null;
+                    }
+                }
+            }
+
+            getBufferDuration() {
+                if (this.chunks.length < 2) return 0;
+                return this.chunks[this.chunks.length - 1].timestamp - this.chunks[0].timestamp;
+            }
+
+            createVideoBlob() {
+                if (this.chunks.length === 0) {
+                    console.warn('[Buffer] No chunks available for blob creation');
+                    return new Blob([], { type: 'video/webm' });
+                }
+
+                // Create blob from all chunks in buffer
+                const dataChunks = this.chunks.map(chunk => chunk.data).filter(data => data);
+                const mimeType = this.chunks[0]?.data?.type || 'video/webm';
+                
+                console.log(`[Buffer] Creating blob from ${dataChunks.length} chunks`);
+                return new Blob(dataChunks, { type: mimeType });
+            }
+
+            startRecording() {
+                if (!this.mediaRecorder) {
+                    throw new Error('MediaRecorder not initialized');
+                }
+
+                if (this.mediaRecorder.state === 'recording') {
+                    console.log('[Buffer] Already recording');
+                    return;
+                }
+
+                this.isRecording = true;
+                this.mediaRecorder.start(this.chunkInterval);
+                console.log(`[Buffer] Started recording with ${this.chunkInterval}ms intervals`);
+            }
+
+            stopRecording() {
+                this.isRecording = false;
+                
+                if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+                    this.mediaRecorder.stop();
+                }
+                
+                console.log('[Buffer] Stopped recording');
+            }
+
+            triggerViolationUpload() {
+                if (!this.mediaRecorder || this.mediaRecorder.state !== 'recording') {
+                    console.warn('[Buffer] Cannot trigger upload - not recording');
+                    return false;
+                }
+
+                console.log('[Buffer] Triggering violation upload');
+                this.mediaRecorder.stop(); // This will trigger onstop callback with violation upload
+                return true;
+            }
+
+            getBufferInfo() {
+                const totalSize = this.chunks.reduce((sum, chunk) => sum + chunk.size, 0);
+                const duration = this.getBufferDuration();
+                
+                return {
+                    chunkCount: this.chunks.length,
+                    totalSizeBytes: totalSize,
+                    totalSizeMB: totalSize / 1024 / 1024,
+                    durationMs: duration,
+                    durationSeconds: duration / 1000,
+                    isRecording: this.isRecording,
+                    recorderState: this.mediaRecorder?.state
+                };
+            }
+
+            cleanup() {
+                this.stopRecording();
+                
+                // Clear all chunks and help garbage collection
+                this.chunks.forEach(chunk => {
+                    if (chunk.data) {
+                        chunk.data = null;
+                    }
+                });
+                this.chunks = [];
+                
+                this.mediaRecorder = null;
+                console.log('[Buffer] Cleanup completed');
+            }
+        }
+
+        // Proctoring Video Manager class
+        class ProctoringVideoManager {
+            constructor(videoElement, statusElement, apiBaseUrl = "http://127.0.0.1:8001") {
+                this.video = videoElement;
+                this.status = statusElement;
+                this.apiBaseUrl = apiBaseUrl;
+                this.buffer = new SlidingVideoBuffer(20, 1000); // 20 seconds, 1s intervals
+                this.isUploading = false;
+            }
+
+            async initialize(mediaStream) {
+                this.buffer.initializeRecorder(mediaStream, this.handleViolationUpload.bind(this));
+                this.buffer.startRecording();
+                
+                this.status.textContent = 'Video buffer initialized - recording started';
+                console.log('[Proctoring] Video buffer system initialized');
+            }
+
+            async handleViolationUpload(videoBlob) {
+                if (this.isUploading) {
+                    console.log('[Proctoring] Upload already in progress, skipping');
+                    return;
+                }
+
+                this.isUploading = true;
+                this.status.textContent = 'Violation detected - uploading evidence...';
+                
+                try {
+                    const formData = new FormData();
+                    formData.append('file', videoBlob, `violation_${Date.now()}.webm`);
+                    formData.append('dmoj_user_id', window.dmojData.userId);
+                    formData.append('dmoj_user_name', window.dmojData.username);
+                    formData.append('dmoj_contest_name', window.dmojData.contestName);
+                    formData.append('timestamp', new Date().toISOString());
+
+                    const response = await fetch(this.apiBaseUrl + '/upload-clip', {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'ngrok-skip-browser-warning': 'true'
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Upload failed: ${response.status} ${response.statusText}`);
+                    }
+
+                    const result = await response.json();
+                    console.log('[Proctoring] Upload successful:', result);
+                    this.status.textContent = 'Evidence uploaded successfully';
+                    
+                } catch (error) {
+                    console.error('[Proctoring] Upload failed:', error);
+                    this.status.textContent = 'Failed to upload evidence - continuing monitoring';
+                } finally {
+                    this.isUploading = false;
+                    
+                    // Resume normal status after delay
+                    setTimeout(() => {
+                        if (!this.isUploading) {
+                            this.status.textContent = 'Monitoring active';
+                        }
+                    }, 3000);
+                }
+            }
+
+            triggerViolationUpload() {
+                return this.buffer.triggerViolationUpload();
+            }
+
+            getStatus() {
+                return {
+                    ...this.buffer.getBufferInfo(),
+                    isUploading: this.isUploading
+                };
+            }
+
+            cleanup() {
+                this.buffer.cleanup();
+            }
+        }    // Simple immediate execution to test
     console.log("[DEBUG] Script loaded - testing immediate execution");
 
     // Test button access immediately
@@ -466,6 +739,9 @@
                 Array.from(document.querySelectorAll('[id^="start"]')).map(el => el.id));
         }
 
+        // Check for existing session on page load
+        checkExistingSession();
+
         // --- Proctoring State & Config ---
         let socket, mediaRecorder;
         let recordedChunks = [];
@@ -477,6 +753,8 @@
         let isShowingFullscreenModal = false;
         let fullscreenExitAttempts = 0;
         let isUserLeavingContest = false;
+        let currentSessionId = null;
+        let proctoringVideoManager = null;
         const ANALYSIS_INTERVAL_MS = 500;
         const ROLLING_BUFFER_SECONDS = 20;
 
@@ -879,6 +1157,191 @@
             }
         }
 
+        /**
+         * Start a proctoring session on the backend.
+         */
+        async function startProctoringSession() {
+            try {
+                const formData = new FormData();
+                // Ensure user ID is sent as integer
+                formData.append('dmoj_user_id', parseInt(window.dmojData.userId));
+                formData.append('dmoj_user_name', window.dmojData.username || '');
+                formData.append('dmoj_contest_name', window.dmojData.contestName || '');
+
+                console.log("[DEBUG] Sending session start request with:", {
+                    dmoj_user_id: parseInt(window.dmojData.userId),
+                    dmoj_user_name: window.dmojData.username,
+                    dmoj_contest_name: window.dmojData.contestName
+                });
+
+                const response = await fetch(API_BASE_URL + '/start-session', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                console.log("[DEBUG] Response status:", response.status);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error("[DEBUG] Error response:", errorText);
+                    throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
+                }
+
+                const result = await response.json();
+                if (result.error) {
+                    return { success: false, error: result.error };
+                }
+
+                return {
+                    success: true,
+                    session_id: result.session_id,
+                    status: result.status
+                };
+
+            } catch (error) {
+                console.error('Error starting session:', error);
+                
+                // If backend is not available, still allow proctoring with local measures
+                if (error.name === 'TypeError' || error.message.includes('Failed to fetch')) {
+                    console.warn('Backend not available - continuing with local proctoring only');
+                    // Generate a local session ID for tracking
+                    const localSessionId = 'local_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                    return {
+                        success: true,
+                        session_id: localSessionId,
+                        status: 'local_only'
+                    };
+                }
+                
+                return { success: false, error: error.message || 'Failed to start session' };
+            }
+        }
+
+        /**
+         * Stop the proctoring session on the backend.
+         */
+        async function stopProctoringSession() {
+            if (!currentSessionId) {
+                console.log("No active session to stop");
+                return { success: true };
+            }
+
+            // If it's a local-only session, just clean up locally
+            if (currentSessionId.startsWith('local_')) {
+                console.log("Stopping local-only session");
+                statusDiv.textContent = 'Local proctoring session stopped.';
+                currentSessionId = null;
+                return { success: true };
+            }
+
+            try {
+                statusDiv.textContent = 'Stopping proctoring session...';
+
+                const formData = new FormData();
+                formData.append('dmoj_user_id', parseInt(window.dmojData.userId));
+
+                console.log("[DEBUG] Sending session stop request with:", {
+                    dmoj_user_id: parseInt(window.dmojData.userId)
+                });
+
+                const response = await fetch(API_BASE_URL + '/stop-session', {
+                    method: 'POST',
+                    body: formData,
+                    timeout: 5000 // 5 second timeout
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error("[DEBUG] Stop session error response:", errorText);
+                    throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
+                }
+
+                const result = await response.json();
+
+                if (result.error) {
+                    console.error('Server error stopping session:', result.error);
+                    statusDiv.textContent = 'Session stopped locally, but server error: ' + result.error;
+                } else {
+                    console.log('Proctoring session stopped successfully on server');
+                    statusDiv.textContent = 'Proctoring session stopped successfully.';
+                }
+
+                currentSessionId = null;
+                return { success: true };
+
+            } catch (error) {
+                console.error('Error stopping session:', error);
+                
+                // If backend is not available, still clean up locally
+                if (error.name === 'TypeError' || error.message.includes('Failed to fetch')) {
+                    console.log('Backend not available - stopping session locally');
+                    statusDiv.textContent = 'Proctoring session stopped (backend unavailable).';
+                } else {
+                    statusDiv.textContent = 'Error stopping session on server. Stopped locally.';
+                }
+                
+                currentSessionId = null;
+                return { success: false, error: 'Failed to stop session on server' };
+            }
+        }
+
+        /**
+         * Check if there's an existing active session for this user.
+         */
+        async function checkExistingSession() {
+            if (!window.dmojData || !window.dmojData.userId) {
+                return; // No user ID to check
+            }
+
+            try {
+                const userId = parseInt(window.dmojData.userId);
+                console.log("[DEBUG] Checking session for user ID:", userId);
+                
+                const response = await fetch(`${API_BASE_URL}/check-session/${userId}`);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error("[DEBUG] Check session error:", errorText);
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                console.log("[DEBUG] Check session result:", result);
+
+                if (result.active) {
+                    currentSessionId = result.session_id;
+                    console.log('Active proctoring session found:', currentSessionId);
+                    
+                    // Update UI to show active session - keep start button enabled for resuming
+                    if (statusDiv) {
+                        statusDiv.textContent = 'Active proctoring session found. Continue to resume monitoring.';
+                    }
+                    
+                    if (startBtn) {
+                        startBtn.disabled = false;
+                        startBtn.textContent = '🔄 Resume Proctoring';
+                    }
+                } else {
+                    // No active session, reset UI
+                    if (startBtn) {
+                        startBtn.disabled = false;
+                        startBtn.textContent = '🎯 Start Proctored Contest';
+                    }
+                    currentSessionId = null;
+                    
+                    if (statusDiv) {
+                        statusDiv.textContent = 'Ready to start proctoring.';
+                    }
+                }
+            } catch (error) {
+                console.error('Error checking existing session:', error);
+                // Continue normally if check fails - don't block the user
+                if (statusDiv && error.message) {
+                    statusDiv.textContent = 'Session check failed. You can still start proctoring.';
+                }
+            }
+        }
+
         // Full proctoring function with all functionality
         async function startProctoring() {
             console.log("[DEBUG] Starting full proctoring session and joining contest...");
@@ -900,6 +1363,28 @@
                 if (isProctoring) {
                     console.log("[DEBUG] Proctoring already active, ignoring duplicate call");
                     return;
+                }
+
+                // Start session on backend first
+                statusDiv.textContent = 'Starting proctoring session...';
+                const sessionResult = await startProctoringSession();
+                if (!sessionResult.success) {
+                    alert('Error starting session: ' + sessionResult.error);
+                    return;
+                }
+
+                currentSessionId = sessionResult.session_id;
+
+                // Handle different session scenarios
+                if (sessionResult.status === 'active') {
+                    console.log("[DEBUG] Resuming existing proctoring session...");
+                    statusDiv.textContent = 'Resuming existing proctoring session...';
+                } else if (sessionResult.status === 'local_only') {
+                    console.log("[DEBUG] Backend not available - running in local-only mode");
+                    statusDiv.textContent = 'Running in local-only mode (backend unavailable)...';
+                } else {
+                    console.log("[DEBUG] New proctoring session created");
+                    statusDiv.textContent = 'New proctoring session started...';
                 }
 
                 // First, join the contest via POST request
@@ -1208,6 +1693,22 @@
         if (modalLeaveBtn) {
             modalLeaveBtn.addEventListener("click", handleModalLeave);
         }
+
+        // Add window focus event listener to check for existing sessions when user returns
+        window.addEventListener('focus', () => {
+            if (!isProctoring) {
+                console.log("[DEBUG] Window focused - checking for existing session");
+                checkExistingSession();
+            }
+        });
+
+        // Add page visibility change event listener 
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && !isProctoring) {
+                console.log("[DEBUG] Page became visible - checking for existing session");
+                checkExistingSession();
+            }
+        });
 
         window.addEventListener("message", (event) => {
             if (event.origin !== window.location.origin || !event.data) return;
@@ -1659,10 +2160,18 @@
          * Initializes the WebSocket connection.
          */
         function initWebSocket() {
+            // Skip WebSocket if running in local-only mode
+            if (currentSessionId && currentSessionId.startsWith('local_')) {
+                console.log("[DEBUG] Running in local-only mode - skipping WebSocket connection");
+                statusDiv.textContent = 'Proctoring active (local mode - no backend monitoring).';
+                return;
+            }
+
             // Test cloud backend connection
             console.log("[DEBUG] Testing cloud backend connection to:", API_BASE_URL + "/upload-clip");
 
-            const wsUrl = API_BASE_URL.replace('http', 'ws') + '/ws';
+            // Include session ID in WebSocket URL
+            const wsUrl = API_BASE_URL.replace('http', 'ws') + `/ws?session_id=${currentSessionId}`;
             console.log("[DEBUG] Initializing WebSocket to:", wsUrl);
             socket = new WebSocket(wsUrl);
 
@@ -1681,11 +2190,14 @@
             socket.onmessage = (event) => {
                 const data = JSON.parse(event.data);
                 console.log('Server response:', data);
+                
+                // Defensive check to prevent crashes if 'violations' is missing
                 let violationMessage = 'Pattern detected';
                 if (Array.isArray(data.violations) && data.violations.length > 0) {
                     violationMessage = data.violations[0]?.message || 'Pattern detected';
                 }
-                statusDiv.textContent = data.is_compliant ? 'Status: Compliant' : 'VIOLATION: ' + violationMessage;
+                
+                statusDiv.textContent = data.is_compliant ? 'Status: Compliant' : `VIOLATION: ${violationMessage}`;
 
                 if (data.trigger_pattern_upload && !isUploading) {
                     handleViolationUpload();
@@ -1694,81 +2206,137 @@
         }
 
         /**
-         * Initializes MediaRecorder with rolling buffer.
+         * Simplified and reliable MediaRecorder implementation that prevents video corruption.
          */
         function initMediaRecorder(stream) {
-            console.log("[DEBUG] Initializing MediaRecorder.");
-            const options = { mimeType: 'video/webm; codecs=vp9' };
-            mediaRecorder = new MediaRecorder(stream, options);
-
-            mediaRecorder.ondataavailable = (event) => {
-                if (event.data.size > 0) {
-                    recordedChunks.push(event.data);
-                }
-                const maxBufferLength = ROLLING_BUFFER_SECONDS + 1;
-                while (recordedChunks.length > maxBufferLength) {
-                    recordedChunks.splice(1, 1);
-                }
-            };
-
-            mediaRecorder.onstop = async () => {
-                console.log("[DEBUG] MediaRecorder stopped. Buffer has " + recordedChunks.length + " chunks.");
-                if (recordedChunks.length === 0) {
-                    console.warn("[DEBUG] No video chunks recorded, skipping upload.");
-                    isUploading = false;
-                    if (isProctoring) mediaRecorder.start(1000);
-                    return;
-                }
-
-                const clipBlob = new Blob(recordedChunks, { type: 'video/webm' });
-                const formData = new FormData();
-                formData.append('file', clipBlob, 'violation_' + new Date().toISOString() + '.webm');
-
-                // Send contest data instead of problem data
-                formData.append('dmoj_user_id', window.dmojData.userId);
-                formData.append('dmoj_user_name', window.dmojData.username);
-                formData.append('dmoj_contest_name', window.dmojData.contestName);
-
-                try {
-                    statusDiv.textContent = 'Uploading evidence...';
-                    const response = await fetch(API_BASE_URL + '/upload-clip', {
-                        method: 'POST',
-                        body: formData,
-                        headers: {
-                            'ngrok-skip-browser-warning': 'true'
+            console.log("[DEBUG] Initializing reliable MediaRecorder with corruption prevention.");
+            
+            // Use most compatible format for better cross-browser support
+            let options = {};
+            if (MediaRecorder.isTypeSupported('video/webm; codecs=vp8')) {
+                options = { mimeType: 'video/webm; codecs=vp8' };
+            } else if (MediaRecorder.isTypeSupported('video/webm')) {
+                options = { mimeType: 'video/webm' };
+            }
+            
+            console.log("[DEBUG] Using MediaRecorder options:", options);
+            
+            // Store globally for easy access
+            window.proctoringStream = stream;
+            window.recorderOptions = options;
+            
+            startContinuousRecording();
+            
+            function startContinuousRecording() {
+                console.log("[DEBUG] Starting continuous recording");
+                
+                mediaRecorder = new MediaRecorder(window.proctoringStream, window.recorderOptions);
+                recordedChunks = [];
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        recordedChunks.push(event.data);
+                        console.log(`[DEBUG] Chunk recorded: ${event.data.size} bytes, total: ${recordedChunks.length} chunks`);
+                        
+                        // Keep only the last 25-30 chunks (roughly 25-30 seconds)
+                        if (recordedChunks.length > 30) {
+                            recordedChunks.shift(); // Remove oldest chunk
                         }
-                    });
-                    if (!response.ok) {
-                        const errorText = await response.text();
-                        throw new Error('Server responded with ${response.status}: ${errorText}');
                     }
-                    const result = await response.json();
-                    console.log('Upload result:', result);
-                    statusDiv.textContent = 'Evidence uploaded. Resuming proctoring.';
-                } catch (error) {
-                    console.error('Error uploading clip:', error);
-                    statusDiv.textContent = 'Failed to upload evidence. See console for details.';
-                } finally {
-                    recordedChunks = [];
-                    isUploading = false;
-                    if (isProctoring) {
-                        mediaRecorder.start(1000);
-                    }
-                }
-            };
+                };
 
-            mediaRecorder.start(1000);
-            console.log("[DEBUG] MediaRecorder started, maintaining a " + ROLLING_BUFFER_SECONDS + "s buffer.");
+                mediaRecorder.onstop = async () => {
+                    console.log("[DEBUG] MediaRecorder stopped for violation upload. Chunks:", recordedChunks.length);
+                    
+                    if (recordedChunks.length === 0) {
+                        console.warn("[DEBUG] No chunks available for upload");
+                        isUploading = false;
+                        if (isProctoring) {
+                            startContinuousRecording();
+                        }
+                        return;
+                    }
+
+                    try {
+                        // Create video blob from all available chunks
+                        const violationBlob = new Blob(recordedChunks, { 
+                            type: window.recorderOptions.mimeType || 'video/webm' 
+                        });
+                        
+                        console.log(`[DEBUG] Created violation video: ${violationBlob.size} bytes`);
+                        
+                        if (violationBlob.size < 100) {
+                            throw new Error("Video too small - likely corrupted");
+                        }
+                        
+                        // Upload the violation video
+                        const formData = new FormData();
+                        formData.append('file', violationBlob, `violation_${Date.now()}.webm`);
+                        formData.append('dmoj_user_id', window.dmojData.userId);
+                        formData.append('dmoj_user_name', window.dmojData.username);
+                        formData.append('dmoj_contest_name', window.dmojData.contestName);
+
+                        statusDiv.textContent = 'Uploading violation evidence...';
+                        
+                        const response = await fetch(API_BASE_URL + '/upload-clip', {
+                            method: 'POST',
+                            body: formData,
+                            headers: { 'ngrok-skip-browser-warning': 'true' }
+                        });
+                        
+                        if (!response.ok) {
+                            const errorText = await response.text();
+                            throw new Error(`Upload failed: ${response.status} - ${errorText}`);
+                        }
+                        
+                        const result = await response.json();
+                        console.log('[DEBUG] Violation uploaded successfully:', result);
+                        statusDiv.textContent = 'Evidence uploaded successfully';
+                        
+                    } catch (error) {
+                        console.error('[DEBUG] Upload failed:', error);
+                        statusDiv.textContent = 'Upload failed, continuing proctoring';
+                    } finally {
+                        // Always restart recording after upload attempt
+                        recordedChunks = [];
+                        isUploading = false;
+                        
+                        if (isProctoring) {
+                            console.log("[DEBUG] Restarting recording after violation upload");
+                            // Small delay to ensure clean restart
+                            setTimeout(() => {
+                                startContinuousRecording();
+                            }, 100);
+                        }
+                    }
+                };
+
+                mediaRecorder.onerror = (event) => {
+                    console.error("[DEBUG] MediaRecorder error:", event);
+                    if (isProctoring) {
+                        setTimeout(() => {
+                            startContinuousRecording();
+                        }, 1000);
+                    }
+                };
+
+                // Start recording with 1-second chunks for optimal balance
+                mediaRecorder.start(1000);
+                console.log("[DEBUG] MediaRecorder started successfully");
+            }
         }
 
         /**
-        * Handles violation upload trigger.
+        * Fixed violation upload handler for MediaRecorder.
         */
         function handleViolationUpload() {
             if (!mediaRecorder || mediaRecorder.state !== 'recording' || isUploading) return;
             isUploading = true;
-            console.log('Pattern violation detected. Uploading existing buffer.');
+            console.log('Pattern violation detected. Uploading sliding window buffer.');
             statusDiv.textContent = 'Violation detected. Uploading evidence...';
+            
+            // Stop recording - this triggers the onstop event which handles upload
+            // The onstop handler will upload exactly the last 20 seconds and then restart fresh
             mediaRecorder.stop();
         }
 
@@ -1788,6 +2356,9 @@
             if (!isProctoring) return;
             console.log("[DEBUG] Stopping proctoring session and cleaning up resources.");
             isProctoring = false;
+
+            // Stop session on backend
+            stopProctoringSession();
 
             // Disable proctoring lock
             disableProctoringLock();
@@ -1809,7 +2380,14 @@
             // Clear all intervals and stop all media
             for (let i = 1; i < 99999; i++) window.clearInterval(i);
             if (socket) socket.close();
-            if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
+            
+            // Clean up MediaRecorder
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+                console.log("[DEBUG] MediaRecorder stopped");
+            }
+            mediaRecorder = null;
+            
             if (mediaStream) {
                 mediaStream.getTracks().forEach(track => track.stop());
                 mediaStream = null;
@@ -1823,6 +2401,7 @@
             isCameraEnabled = false;
             isShowingFullscreenModal = false;
             isUserLeavingContest = false;
+            currentSessionId = null;
 
             // Hide modal if it's showing
             if (fullscreenExitModal) {
@@ -1848,7 +2427,7 @@
             cameraBtn.className = 'step-button btn-primary';
             cameraBtn.disabled = true;
 
-            startBtn.textContent = '🎯 Start Proctored Contest';
+            startBtn.textContent = 'Start Proctored Contest';
             startBtn.className = 'step-button btn-success';
             startBtn.disabled = true;
         }
