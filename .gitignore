@@ -23,3 +23,4 @@ sass_processed
 bulk_email_files/*
 !bulk_email_files/.gitkeep
 celery.log
+.github/copilot-instructions.md
