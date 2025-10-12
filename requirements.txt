@@ -39,3 +39,7 @@ django-admin-sortable2
 icalendar
 # This is a celery dependency whose latest major version is breaking everything.
 importlib-metadata<5
+# Email management dependencies
+pandas
+openpyxl
+ 

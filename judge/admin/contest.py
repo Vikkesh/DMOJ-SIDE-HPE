@@ -30,18 +30,6 @@ from django.conf import settings
 from django.utils.crypto import get_random_string
 
 
-
-class ContestForm(ModelForm):
-    emails_csv = forms.FileField(
-        required=False,
-        help_text=_("Upload a CSV of email addresses to auto-create accounts and add them to this contest."),
-    )
-
-    def __init__(self, *args, **kwargs):
-        super(ContestForm, self).__init__(*args, **kwargs)
-        ...
-
-
 class AdminHeavySelect2Widget(AdminHeavySelect2Widget):
     @property
     def is_hidden(self):
@@ -102,7 +90,7 @@ class ContestProblemInline(SortableInlineAdminMixin, admin.TabularInline):
 class ContestForm(ModelForm):
     emails_csv = forms.FileField(
         required=False,
-        help_text=_("Upload a CSV of email addresses to auto-create accounts and add them to this contest."),
+        help_text=_("Upload a CSV or Excel file with email addresses to auto-create user accounts. Existing accounts will be skipped."),
     )
     def __init__(self, *args, **kwargs):
         super(ContestForm, self).__init__(*args, **kwargs)
@@ -295,6 +283,8 @@ class ContestAdmin(NoBatchDeleteMixin, SortableAdminBase, VersionAdmin):
             path('rate/all/', self.rate_all_view, name='judge_contest_rate_all'),
             path('<int:id>/rate/', self.rate_view, name='judge_contest_rate'),
             path('<int:contest_id>/judge/<int:problem_id>/', self.rejudge_view, name='judge_contest_rejudge'),
+            path('<int:contest_id>/generate-accounts/', self.generate_accounts_view, name='judge_contest_generate_accounts'),
+            path('generate-accounts/', self.generate_accounts_view, name='judge_contest_generate_accounts_new'),
         ] + super(ContestAdmin, self).get_urls()
 
     @method_decorator(require_POST)
@@ -334,6 +324,160 @@ class ContestAdmin(NoBatchDeleteMixin, SortableAdminBase, VersionAdmin):
             contest.rate()
         return HttpResponseRedirect(request.headers.get('referer', reverse('admin:judge_contest_changelist')))
 
+    @method_decorator(require_POST)
+    def generate_accounts_view(self, request, contest_id=None):
+        """Handle CSV/Excel file upload and generate user accounts"""
+        from django.http import JsonResponse
+        
+        if not request.user.has_perm('judge.change_contest'):
+            return JsonResponse({'error': 'Permission denied'}, status=403)
+        
+        csv_file = request.FILES.get('emails_csv')
+        if not csv_file:
+            return JsonResponse({'error': 'No file uploaded'}, status=400)
+        
+        try:
+            # Try to import pandas for Excel support
+            try:
+                import pandas as pd
+                HAS_PANDAS = True
+            except ImportError:
+                HAS_PANDAS = False
+            
+            emails = []
+            file_name = csv_file.name.lower()
+            
+            # Handle CSV files
+            if file_name.endswith('.csv'):
+                decoded_file = csv_file.read().decode('utf-8').splitlines()
+                reader = csv.reader(decoded_file)
+                next(reader, None)  # skip header if present
+                
+                for row in reader:
+                    if row and row[0].strip():
+                        emails.append(row[0].strip())
+            
+            # Handle Excel files
+            elif file_name.endswith(('.xlsx', '.xls')):
+                if not HAS_PANDAS:
+                    return JsonResponse({
+                        'error': 'Excel file support requires pandas. Please install pandas and openpyxl.'
+                    }, status=400)
+                
+                df = pd.read_excel(csv_file)
+                # Try to find email column (case-insensitive)
+                email_col = None
+                for col in df.columns:
+                    if 'email' in str(col).lower():
+                        email_col = col
+                        break
+                
+                if email_col is None:
+                    # If no email column found, use first column
+                    email_col = df.columns[0]
+                
+                for email in df[email_col].dropna():
+                    if str(email).strip():
+                        emails.append(str(email).strip())
+            
+            else:
+                return JsonResponse({
+                    'error': 'Unsupported file format. Please upload CSV or Excel files.'
+                }, status=400)
+            
+            # Process each email
+            created_count = 0
+            skipped_count = 0
+            failed_emails = []
+            
+            for email in emails:
+                # Check if user with this email already exists
+                if User.objects.filter(email=email).exists():
+                    skipped_count += 1
+                    continue
+                
+                # Generate unique username from email
+                base_username = email.split('@')[0][:20]  # Limit to 20 chars
+                username = base_username
+                counter = 1
+                
+                # Ensure username is unique
+                while User.objects.filter(username=username).exists():
+                    username = f"{base_username}{counter}"
+                    counter += 1
+                
+                # Generate random password
+                password = get_random_string(12)
+                
+                try:
+                    # Create new user
+                    user = User.objects.create_user(
+                        username=username,
+                        email=email,
+                        password=password
+                    )
+                    
+                    # Create associated profile
+                    Profile.objects.get_or_create(user=user)
+                    
+                    # Send welcome email with credentials
+                    email_subject = 'Your Account Credentials - Please Change Password'
+                    email_message = f"""Hello,
+
+An account has been created for you.
+
+Username: {username}
+Temporary Password: {password}
+
+IMPORTANT: Please log in and change your password immediately for security purposes.
+
+Login at: {settings.SITE_FULL_URL if hasattr(settings, 'SITE_FULL_URL') else 'your-site-url'}
+
+If you did not request this account, please contact support.
+
+Best regards,
+{settings.SITE_NAME if hasattr(settings, 'SITE_NAME') else 'Admin Team'}"""
+                    
+                    try:
+                        send_mail(
+                            subject=email_subject,
+                            message=email_message,
+                            from_email=settings.DEFAULT_FROM_EMAIL,
+                            recipient_list=[email],
+                            fail_silently=False,
+                        )
+                        created_count += 1
+                    except Exception as e:
+                        failed_emails.append((email, str(e)))
+                        created_count += 1  # Still count as created even if email failed
+                
+                except Exception as e:
+                    failed_emails.append((email, str(e)))
+            
+            # Build response message
+            message_parts = []
+            if created_count > 0:
+                message_parts.append(f"Successfully created {created_count} new account(s)")
+            if skipped_count > 0:
+                message_parts.append(f"Skipped {skipped_count} existing account(s)")
+            if failed_emails:
+                message_parts.append(f"Failed to process {len(failed_emails)} email(s)")
+            
+            details = " | ".join(message_parts) if message_parts else "No accounts processed"
+            
+            return JsonResponse({
+                'message': f'Account generation complete!',
+                'details': details,
+                'created': created_count,
+                'skipped': skipped_count,
+                'failed': len(failed_emails)
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'error': f'Error processing file: {str(e)}'
+            }, status=500)
+
     def get_form(self, request, obj=None, **kwargs):
         form = super(ContestAdmin, self).get_form(request, obj, **kwargs)
         if 'problem_label_script' in form.base_fields:
@@ -352,9 +496,7 @@ class ContestAdmin(NoBatchDeleteMixin, SortableAdminBase, VersionAdmin):
         form.base_fields['classes'].queryset = Class.get_visible_classes(request.user)
         return form
     def save_model(self, request, obj, form, change):
-        # ------------------------------
-        # Step 1: Original admin logic
-        # ------------------------------
+        # `private_contestants` and `organizations` will not appear in `cleaned_data` if user cannot edit it
         if form.changed_data:
             if 'private_contestants' in form.changed_data:
                 obj.is_private = bool(form.cleaned_data['private_contestants'])
@@ -363,6 +505,7 @@ class ContestAdmin(NoBatchDeleteMixin, SortableAdminBase, VersionAdmin):
             if 'join_organizations' in form.cleaned_data:
                 obj.limit_join_organizations = bool(form.cleaned_data['join_organizations'])
 
+        # `is_visible` will not appear in `cleaned_data` if user cannot edit it
         if form.cleaned_data.get('is_visible') and not request.user.has_perm('judge.change_contest_visibility'):
             if not obj.is_private and not obj.is_organization_private:
                 raise PermissionDenied
@@ -370,10 +513,7 @@ class ContestAdmin(NoBatchDeleteMixin, SortableAdminBase, VersionAdmin):
                 raise PermissionDenied
 
         super().save_model(request, obj, form, change)
-
-        # ------------------------------
-        # Step 2: Rescoring logic
-        # ------------------------------
+        # We need this flag because `save_related` deals with the inlines, but does not know if we have already rescored
         self._rescored = False
         if form.changed_data and any(f in form.changed_data for f in ('format_config', 'format_name')):
             self._rescore(obj.key)
@@ -381,49 +521,6 @@ class ContestAdmin(NoBatchDeleteMixin, SortableAdminBase, VersionAdmin):
 
         if form.changed_data and 'locked_after' in form.changed_data:
             self.set_locked_after(obj, form.cleaned_data['locked_after'])
-
-        # ------------------------------
-        # Step 3: CSV / User creation / Email / Add to contest
-        # ------------------------------
-        csv_file = form.cleaned_data.get('emails_csv')
-        csv_file = form.cleaned_data.get('emails_csv')
-        if csv_file:
-            import csv
-            from django.contrib.auth.models import User
-            from django.utils.crypto import get_random_string
-            from django.core.mail import send_mail
-            from judge.models import Profile, ContestParticipation
-
-            decoded_file = csv_file.read().decode('utf-8').splitlines()
-            reader = csv.reader(decoded_file)
-            next(reader, None)  # skip header if present
-
-            for row in reader:
-                email = row[0].strip()
-                username = row[1].strip() if len(row) > 1 else email.split('@')[0]
-
-                user, created = User.objects.get_or_create(username=username, defaults={'email': email})
-                if created:
-                    password = get_random_string(10)
-                    user.set_password(password)
-                    user.save()
-
-                    try:
-                        send_mail(
-                            subject='Contest Credentials',
-                            message=f'UserID: {user.username}\nPassword: {password}',
-                            from_email='adabalatrishal@gmail.com',
-                            recipient_list=[user.email],
-                            fail_silently=False,
-                        )
-                    except Exception as e:
-                        print(f"Failed to send email to {email}: {e}")
-
-                # Instead of adding to obj.participants, create a ContestParticipation
-                profile, _ = Profile.objects.get_or_create(user=user)
-                ContestParticipation.objects.get_or_create(contest=obj, user=profile)
-
-        obj.save()
 
 
 

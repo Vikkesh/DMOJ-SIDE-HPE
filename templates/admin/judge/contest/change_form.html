@@ -12,8 +12,123 @@
                 event.stopImmediatePropagation();
                 return false;
             });
+            
+            // Add Generate Accounts button functionality
+            var $csvField = $('#id_emails_csv').closest('.form-row');
+            if ($csvField.length) {
+                var $buttonRow = $('<div class="form-row field-generate_accounts"></div>');
+                var $buttonWrapper = $('<div class="generate-accounts-wrapper"></div>');
+                var $button = $('<button type="button" id="generate-accounts-btn" class="button generate-accounts-btn">' + 
+                               '{% trans "Generate Accounts from Uploaded File" %}</button>');
+                var $statusDiv = $('<div id="generation-status" style="margin-top: 10px; padding: 10px; display: none; border-radius: 4px;"></div>');
+                
+                $buttonWrapper.append($button);
+                $buttonWrapper.append($statusDiv);
+                $buttonRow.append($buttonWrapper);
+                $csvField.after($buttonRow);
+                
+                // Handle button click
+                $button.on('click', function(e) {
+                    e.preventDefault();
+                    
+                    var fileInput = document.getElementById('id_emails_csv');
+                    if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+                        alert('{% trans "Please select a CSV or Excel file first." %}');
+                        return;
+                    }
+                    
+                    var file = fileInput.files[0];
+                    var formData = new FormData();
+                    formData.append('emails_csv', file);
+                    formData.append('csrfmiddlewaretoken', $('input[name="csrfmiddlewaretoken"]').val());
+                    
+                    // Get contest ID if editing existing contest
+                    var contestId = '{{ original.id|default:"" }}';
+                    var url = contestId ? 
+                        '/admin/judge/contest/' + contestId + '/generate-accounts/' :
+                        '/admin/judge/contest/generate-accounts/';
+                    
+                    // Disable button and show loading
+                    $button.prop('disabled', true).text('{% trans "Processing..." %}');
+                    $statusDiv.hide().removeClass('success error');
+                    
+                    $.ajax({
+                        url: url,
+                        type: 'POST',
+                        data: formData,
+                        processData: false,
+                        contentType: false,
+                        success: function(response) {
+                            $button.prop('disabled', false).text('{% trans "Generate Accounts from Uploaded File" %}');
+                            $statusDiv.addClass('success')
+                                     .html('<strong>✓ Success:</strong> ' + response.message)
+                                     .show();
+                            
+                            if (response.details) {
+                                $statusDiv.append('<br><small>' + response.details + '</small>');
+                            }
+                            
+                            // Clear the file input after successful generation
+                            fileInput.value = '';
+                        },
+                        error: function(xhr) {
+                            $button.prop('disabled', false).text('{% trans "Generate Accounts from Uploaded File" %}');
+                            var errorMsg = xhr.responseJSON && xhr.responseJSON.error ? 
+                                          xhr.responseJSON.error : 
+                                          '{% trans "An error occurred while processing the file." %}';
+                            $statusDiv.addClass('error')
+                                     .html('<strong>✗ Error:</strong> ' + errorMsg)
+                                     .show();
+                        }
+                    });
+                });
+            }
         });
     </script>
+    
+    <style>
+        .generate-accounts-wrapper {
+            margin-left: 10px;  /* Aligns with Django admin field inputs */
+            padding: 5px 0;
+        }
+        .generate-accounts-btn {
+            background-color: #417690 !important;
+            color: white !important;
+            padding: 5px 24px !important;
+            border: none !important;
+            border-radius: 4px !important;
+            cursor: pointer !important;
+            font-size: 14px !important;
+            font-weight: 500 !important;
+            white-space: nowrap !important;
+            display: inline-block !important;
+            text-align: center !important;
+            line-height: 1.5 !important;
+            min-width: 280px !important;
+            vertical-align: middle !important;
+        }
+        .generate-accounts-btn:hover {
+            background-color: #2e5266 !important;
+        }
+        .generate-accounts-btn:disabled {
+            background-color: #6c757d !important;
+            cursor: not-allowed !important;
+            opacity: 0.65 !important;
+        }
+        #generation-status {
+            margin-left: 0;
+        }
+        #generation-status.success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        #generation-status.error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+    </style>
 {% endblock extrahead %}
 
 {% block after_field_sets %}{{ block.super }}
