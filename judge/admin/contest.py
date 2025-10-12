@@ -92,6 +92,11 @@ class ContestForm(ModelForm):
         required=False,
         help_text=_("Upload a CSV or Excel file with email addresses to auto-create user accounts. Existing accounts will be skipped."),
     )
+    private_contestants_csv = forms.FileField(
+        required=False,
+        label=_("Private Contestants CSV/Excel"),
+        help_text=_("Upload CSV or Excel with email addresses to add as private contestants. Only existing users will be added."),
+    )
     def __init__(self, *args, **kwargs):
         super(ContestForm, self).__init__(*args, **kwargs)
         if 'rate_exclude' in self.fields:
@@ -137,7 +142,7 @@ class ContestAdmin(NoBatchDeleteMixin, SortableAdminBase, VersionAdmin):
         (_('Format'), {'fields': ('format_name', 'format_config', 'problem_label_script')}),
         (_('Rating'), {'fields': ('is_rated', 'rate_all', 'rating_floor', 'rating_ceiling',
                                   'performance_ceiling_override', 'rate_exclude')}),
-        (_('Access'), {'fields': ('access_code', 'private_contestants', 'organizations', 'classes',
+        (_('Access'), {'fields': ('access_code', 'private_contestants', 'private_contestants_csv', 'organizations', 'classes',
                                   'join_organizations', 'view_contest_scoreboard', 'view_contest_submissions','emails_csv',)}),
         (_('Justice'), {'fields': ('banned_users',)}),
     )
@@ -285,6 +290,8 @@ class ContestAdmin(NoBatchDeleteMixin, SortableAdminBase, VersionAdmin):
             path('<int:contest_id>/judge/<int:problem_id>/', self.rejudge_view, name='judge_contest_rejudge'),
             path('<int:contest_id>/generate-accounts/', self.generate_accounts_view, name='judge_contest_generate_accounts'),
             path('generate-accounts/', self.generate_accounts_view, name='judge_contest_generate_accounts_new'),
+            path('<int:contest_id>/add-private-contestants/', self.add_private_contestants_view, name='judge_contest_add_private_contestants'),
+            path('add-private-contestants/', self.add_private_contestants_view, name='judge_contest_add_private_contestants_new'),
         ] + super(ContestAdmin, self).get_urls()
 
     @method_decorator(require_POST)
@@ -472,6 +479,157 @@ Best regards,
                 'skipped': skipped_count,
                 'failed': len(failed_emails)
             })
+            
+        except Exception as e:
+            return JsonResponse({
+                'error': f'Error processing file: {str(e)}'
+            }, status=500)
+
+    @method_decorator(require_POST)
+    def add_private_contestants_view(self, request, contest_id=None):
+        """Handle CSV/Excel file upload and add users to private_contestants"""
+        from django.http import JsonResponse
+        
+        if not request.user.has_perm('judge.change_contest'):
+            return JsonResponse({'error': 'Permission denied'}, status=403)
+        
+        # Get the contest if it exists (None for unsaved contests)
+        contest = None
+        if contest_id:
+            contest = get_object_or_404(Contest, id=contest_id)
+        
+        csv_file = request.FILES.get('private_contestants_csv')
+        if not csv_file:
+            return JsonResponse({'error': 'No file uploaded'}, status=400)
+        
+        try:
+            # Try to import pandas for Excel support
+            try:
+                import pandas as pd
+                HAS_PANDAS = True
+            except ImportError:
+                HAS_PANDAS = False
+            
+            emails = []
+            file_name = csv_file.name.lower()
+            
+            # Handle CSV files
+            if file_name.endswith('.csv'):
+                decoded_file = csv_file.read().decode('utf-8').splitlines()
+                reader = csv.reader(decoded_file)
+                next(reader, None)  # skip header if present
+                
+                for row in reader:
+                    if row and row[0].strip():
+                        emails.append(row[0].strip())
+            
+            # Handle Excel files
+            elif file_name.endswith(('.xlsx', '.xls')):
+                if not HAS_PANDAS:
+                    return JsonResponse({
+                        'error': 'Excel file support requires pandas. Please install pandas and openpyxl.'
+                    }, status=400)
+                
+                df = pd.read_excel(csv_file)
+                # Try to find email column (case-insensitive)
+                email_col = None
+                for col in df.columns:
+                    if 'email' in str(col).lower():
+                        email_col = col
+                        break
+                
+                if email_col is None:
+                    # If no email column found, use first column
+                    email_col = df.columns[0]
+                
+                for email in df[email_col].dropna():
+                    if str(email).strip():
+                        emails.append(str(email).strip())
+            
+            else:
+                return JsonResponse({
+                    'error': 'Unsupported file format. Please upload CSV or Excel files.'
+                }, status=400)
+            
+            if not emails:
+                return JsonResponse({
+                    'error': 'No email addresses found in file.'
+                }, status=400)
+            
+            # Process each email
+            added_count = 0
+            already_added_count = 0
+            not_found_count = 0
+            not_found_emails = []
+            profile_data = []  # Store profile data (id, username) for unsaved contests
+            
+            for email in emails:
+                try:
+                    # Lookup user by email
+                    user = User.objects.get(email=email)
+                    
+                    # Check if user has a profile
+                    if not hasattr(user, 'profile'):
+                        not_found_count += 1
+                        not_found_emails.append(email)
+                        continue
+                    
+                    profile = user.profile
+                    
+                    if contest:
+                        # For saved contests: add directly to ManyToMany field
+                        # Check if already added
+                        if contest.private_contestants.filter(id=profile.id).exists():
+                            already_added_count += 1
+                        else:
+                            # Add to private contestants
+                            contest.private_contestants.add(profile)
+                            added_count += 1
+                    else:
+                        # For unsaved contests: return profile data (id and display name)
+                        profile_data.append({
+                            'id': profile.id,
+                            'text': profile.user.username  # This is what select2 needs
+                        })
+                        added_count += 1
+                        
+                except User.DoesNotExist:
+                    not_found_count += 1
+                    not_found_emails.append(email)
+            
+            # Auto-set is_private flag if contestants were added (only for saved contests)
+            if contest and added_count > 0 and not contest.is_private:
+                contest.is_private = True
+                contest.save()
+            
+            # Build response message
+            if contest:
+                message = f"Successfully added {added_count} user(s) to private contestants."
+            else:
+                message = f"Found {added_count} user(s) to add as private contestants. Save the contest to apply changes."
+            
+            if already_added_count > 0:
+                message += f" Skipped {already_added_count} already added."
+            if not_found_count > 0:
+                message += f" Could not find {not_found_count} user(s) in the system."
+            
+            response_data = {
+                'message': message,
+                'added': added_count,
+                'already_added': already_added_count,
+                'not_found': not_found_count,
+            }
+            
+            # Include profile data for unsaved contests
+            if not contest and profile_data:
+                response_data['profile_data'] = profile_data
+            
+            if not_found_emails and len(not_found_emails) <= 10:
+                response_data['not_found_emails'] = not_found_emails
+            elif not_found_emails:
+                response_data['details'] = f"First 10 not found: {', '.join(not_found_emails[:10])}"
+            
+            return JsonResponse(response_data)
             
         except Exception as e:
             return JsonResponse({
