@@ -47,6 +47,8 @@ EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_HOST_USER = 'adabalatrishal@gmail.com'
 EMAIL_HOST_PASSWORD = 'your 16 char password without spaces'
 EMAIL_PORT = 587
+# Set the default FROM email for bulk emails
+DEFAULT_FROM_EMAIL = 'fieryvikkesh@gmail.com'
 
 dont forget to change the paths/directories in trial_script.py and judge.yml
 

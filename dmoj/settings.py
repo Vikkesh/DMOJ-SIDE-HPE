@@ -27,8 +27,7 @@ SECRET_KEY = '5*9f5q57mqmlz2#f$x1h76&jxy#yortjl1v+l*6hd18$d*yx#0'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-#ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '172.24.12.193']
-
+ALLOWED_HOSTS = []
 
 SITE_ID = 1
 SITE_NAME = 'DMOJ'
@@ -248,6 +247,16 @@ else:
                     ],
                 },
                 ('flatpages.FlatPage', 'fa-file-text-o'),
+                {
+                    'model': 'judge.BulkEmailCampaign',
+                    'icon': 'fa-envelope',
+                    'name': 'Emailing',
+                    'children': [
+                        'judge.EmailTemplate',
+                        'judge.EmailRecipient', 
+                        'judge.EmailLog',
+                    ],
+                },
                 ('judge.MiscConfig', 'fa-question-circle'),
             ],
             'dashboard': {
@@ -562,7 +571,7 @@ STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'resources'),
 ]
 STATIC_URL = '/static/'
-STATIC_ROOT = '/home/sukhraj/site/staticfiles'
+
 # Define a cache
 CACHES = {}
 
@@ -604,8 +613,8 @@ CELERY_WORKER_HIJACK_ROOT_LOGGER = False
 WEBAUTHN_RP_ID = None
 
 try:
-    with open(os.path.join(os.path.dirname(__file__), 'local_settings.py')) as F:
-        exec(F.read(), globals())
+    with open(os.path.join(os.path.dirname(__file__), 'local_settings.py')) as f:
+        exec(f.read(), globals())
 except IOError:
     pass
 
