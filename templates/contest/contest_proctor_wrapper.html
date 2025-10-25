@@ -1710,6 +1710,14 @@
             }
         });
 
+        // Send final tab switch data before page unload
+        window.addEventListener('beforeunload', () => {
+            if (isProctoring && socket && socket.readyState === WebSocket.OPEN) {
+                console.log("[DEBUG] Page unloading - sending final tab switch update");
+                sendTabSwitchUpdate(tabSwitchCount, totalTimeOutside);
+            }
+        });
+
         window.addEventListener("message", (event) => {
             if (event.origin !== window.location.origin || !event.data) return;
 
@@ -1833,6 +1841,9 @@
             console.log("[DEBUG] Tab switch detected (" + reason + ") - count now:", tabSwitchCount);
             updateTabSwitchDisplay();
 
+            // Send update to backend
+            sendTabSwitchUpdate(tabSwitchCount, totalTimeOutside);
+
             setTimeout(() => { switchCooldownActive = false; }, 100);
             if (typeof statusDiv !== 'undefined' && statusDiv) {
                 statusDiv.textContent = 'WARNING: Tab switches detected: ' + tabSwitchCount;
@@ -1855,12 +1866,21 @@
                 console.log("[DEBUG] outside timer started at:", outsideStartTime);
 
                 setTimeOutsideDisplay(totalTimeOutside);
+                
+                let tickCount = 0;
 
                 timeOutsideInterval = setInterval(() => {
                     const currentSessionTime = Math.floor((Date.now() - outsideStartTime) / 1000);
                     const displayTime = totalTimeOutside + currentSessionTime;
                     setTimeOutsideDisplay(displayTime);
                     console.log("[DEBUG] time-outside tick - session:", currentSessionTime, "total:", displayTime);
+                    
+                    // Send periodic update every 5 seconds (50 ticks at 100ms intervals)
+                    tickCount++;
+                    if (tickCount >= 50) {
+                        sendTabSwitchUpdate(tabSwitchCount, displayTime);
+                        tickCount = 0;
+                    }
                 }, 100);
             }
         }
@@ -1880,6 +1900,9 @@
 
                 console.log("[DEBUG] outside timer stopped - session elapsed:", elapsedSecs, "new total:", totalTimeOutside);
                 setTimeOutsideDisplay(totalTimeOutside);
+
+                // Send update to backend when time outside changes
+                sendTabSwitchUpdate(tabSwitchCount, totalTimeOutside);
 
                 outsideStartTime = 0;
             }
@@ -2157,6 +2180,32 @@
         // --- Core Proctoring Functions ---
 
         /**
+         * Send tab switch tracking data to backend via WebSocket
+         */
+        function sendTabSwitchUpdate(count, timeOutside) {
+            if (!socket || socket.readyState !== WebSocket.OPEN) {
+                console.warn('[DEBUG] Cannot send tab switch update - WebSocket not connected');
+                return;
+            }
+            
+            if (!currentSessionId) {
+                console.warn('[DEBUG] Cannot send tab switch update - no session ID');
+                return;
+            }
+            
+            const message = {
+                type: 'tab_switch',
+                session_id: currentSessionId,
+                count: count,
+                time_outside: timeOutside,
+                timestamp: new Date().toISOString()
+            };
+            
+            console.log('[DEBUG] Sending tab switch update:', message);
+            socket.send(JSON.stringify(message));
+        }
+
+        /**
          * Initializes the WebSocket connection.
          */
         function initWebSocket() {
@@ -2175,7 +2224,10 @@
             console.log("[DEBUG] Initializing WebSocket to:", wsUrl);
             socket = new WebSocket(wsUrl);
 
-            socket.onopen = () => statusDiv.textContent = 'Connected. Proctoring started.';
+            socket.onopen = () => {
+                statusDiv.textContent = 'Connected. Proctoring started.';
+                console.log('[DEBUG] WebSocket connected - tab switch tracking enabled');
+            };
             socket.onclose = () => {
                 console.log('[DEBUG] WebSocket connection closed - continuing proctoring without backend monitoring');
                 statusDiv.textContent = 'Proctoring active (monitoring offline).';
@@ -2190,6 +2242,15 @@
             socket.onmessage = (event) => {
                 const data = JSON.parse(event.data);
                 console.log('Server response:', data);
+                
+                // Handle tab switch acknowledgment
+                if (data.type === 'tab_switch_ack') {
+                    console.log('[DEBUG] Tab switch update acknowledged:', data);
+                    if (data.success) {
+                        console.log(`[DEBUG] Backend received - Count: ${data.count}, Time Outside: ${data.time_outside}s`);
+                    }
+                    return;
+                }
                 
                 // Defensive check to prevent crashes if 'violations' is missing
                 let violationMessage = 'Pattern detected';
@@ -2356,6 +2417,16 @@
             if (!isProctoring) return;
             console.log("[DEBUG] Stopping proctoring session and cleaning up resources.");
             isProctoring = false;
+
+            // Send final tab switch update before closing connection
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                console.log("[DEBUG] Sending final tab switch update before stopping");
+                sendTabSwitchUpdate(tabSwitchCount, totalTimeOutside);
+                // Give it a moment to send before closing
+                setTimeout(() => {
+                    if (socket) socket.close();
+                }, 100);
+            }
 
             // Stop session on backend
             stopProctoringSession();
