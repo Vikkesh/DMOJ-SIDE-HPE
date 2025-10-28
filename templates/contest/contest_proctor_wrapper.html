@@ -700,6 +700,14 @@
 
         // --- UI & Server Configuration ---
         const API_BASE_URL = "http://127.0.0.1:8001";
+        const DISABLE_BACKEND = window.dmojData && window.dmojData.disableBackend;
+        
+        if (DISABLE_BACKEND) {
+            console.log("[DEBUG] Backend connection DISABLED by debug settings");
+        } else {
+            console.log("[DEBUG] Backend connection ENABLED");
+        }
+        
         const startBtn = document.getElementById("startBtn");
         const fullscreenBtn = document.getElementById("fullscreenBtn");
         const cameraBtn = document.getElementById("cameraBtn");
@@ -1161,6 +1169,17 @@
          * Start a proctoring session on the backend.
          */
         async function startProctoringSession() {
+            // If backend is disabled in debug settings, skip backend connection
+            if (DISABLE_BACKEND) {
+                console.log("[DEBUG] Backend disabled - using local-only mode");
+                const localSessionId = 'local_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                return {
+                    success: true,
+                    session_id: localSessionId,
+                    status: 'local_only'
+                };
+            }
+            
             try {
                 const formData = new FormData();
                 // Ensure user ID is sent as integer
@@ -1226,8 +1245,8 @@
                 return { success: true };
             }
 
-            // If it's a local-only session, just clean up locally
-            if (currentSessionId.startsWith('local_')) {
+            // If backend is disabled or it's a local-only session, just clean up locally
+            if (DISABLE_BACKEND || currentSessionId.startsWith('local_')) {
                 console.log("Stopping local-only session");
                 statusDiv.textContent = 'Local proctoring session stopped.';
                 currentSessionId = null;
@@ -1291,6 +1310,16 @@
         async function checkExistingSession() {
             if (!window.dmojData || !window.dmojData.userId) {
                 return; // No user ID to check
+            }
+
+            // Skip session check if backend is disabled
+            if (DISABLE_BACKEND) {
+                console.log("[DEBUG] Backend disabled - skipping session check");
+                currentSessionId = null;
+                if (statusDiv) {
+                    statusDiv.textContent = 'Ready to start proctoring (local mode).';
+                }
+                return;
             }
 
             try {
@@ -2183,6 +2212,12 @@
          * Send tab switch tracking data to backend via WebSocket
          */
         function sendTabSwitchUpdate(count, timeOutside) {
+            // Skip if backend is disabled
+            if (DISABLE_BACKEND) {
+                console.log('[DEBUG] Backend disabled - skipping tab switch update');
+                return;
+            }
+            
             if (!socket || socket.readyState !== WebSocket.OPEN) {
                 console.warn('[DEBUG] Cannot send tab switch update - WebSocket not connected');
                 return;
@@ -2209,9 +2244,9 @@
          * Initializes the WebSocket connection.
          */
         function initWebSocket() {
-            // Skip WebSocket if running in local-only mode
-            if (currentSessionId && currentSessionId.startsWith('local_')) {
-                console.log("[DEBUG] Running in local-only mode - skipping WebSocket connection");
+            // Skip WebSocket if backend is disabled or running in local-only mode
+            if (DISABLE_BACKEND || (currentSessionId && currentSessionId.startsWith('local_'))) {
+                console.log("[DEBUG] Backend disabled or running in local-only mode - skipping WebSocket connection");
                 statusDiv.textContent = 'Proctoring active (local mode - no backend monitoring).';
                 return;
             }
@@ -2312,6 +2347,18 @@
                     if (recordedChunks.length === 0) {
                         console.warn("[DEBUG] No chunks available for upload");
                         isUploading = false;
+                        if (isProctoring) {
+                            startContinuousRecording();
+                        }
+                        return;
+                    }
+
+                    // Skip upload if backend is disabled
+                    if (DISABLE_BACKEND) {
+                        console.log("[DEBUG] Backend disabled - skipping violation video upload");
+                        console.log("[DEBUG] Video recorded locally but not uploaded:", recordedChunks.length, "chunks");
+                        isUploading = false;
+                        recordedChunks = [];
                         if (isProctoring) {
                             startContinuousRecording();
                         }

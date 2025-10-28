@@ -1,10 +1,10 @@
-
 # Contest-related debug settings
 CONTEST_REJOIN_DEBUG = True  # Allow users to rejoin contests after exiting (useful for testing)
 CONTEST_TEMPLATE_DEBUG = True  # Enable debug features in contest templates
 
 # Proctoring debug settings
 PROCTORING_DEBUG = True  # Enable proctoring debug features
+PROCTORING_DISABLE_BACKEND = True  # Disable backend connection (run in local-only mode)
 
 # General contest debug settings
 GENERAL_CONTEST_DEBUG = True  # General contest debugging features
@@ -23,6 +23,10 @@ def get_contest_template_debug():
 def get_proctoring_debug():
     """Get the proctoring debug setting"""
     return MASTER_DEBUG_ENABLED and PROCTORING_DEBUG
+
+def get_proctoring_disable_backend():
+    """Get the proctoring backend disable setting"""
+    return MASTER_DEBUG_ENABLED and PROCTORING_DISABLE_BACKEND
 
 def get_general_contest_debug():
     """Get the general contest debug setting"""
