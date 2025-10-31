@@ -540,6 +540,7 @@ class ContestProctoredJoin(LoginRequiredMixin, ContestMixin, SingleObjectMixin, 
         return render(request, 'contest/contest_proctor_wrapper.html', {
             'contest': contest,
             'title': _('Start Proctored Contest: %(contest)s') % {'contest': contest.name},
+            'user': profile,
             'dmoj_data': {
                 'userId': profile.id,
                 'username': profile.user.username,
