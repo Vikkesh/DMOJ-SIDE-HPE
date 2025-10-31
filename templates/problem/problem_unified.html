@@ -63,6 +63,10 @@
             border-right: 2px solid #e0e0e0;
             padding: 0;
             background: #fff;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
         }
         
         #problem-description-panel .problem-title {
@@ -565,6 +569,130 @@
     {% if default_lang.template %}
     editor.setValue({{ default_lang.template|tojson }}, -1);
     {% endif %}
+
+    // Block copy/paste operations on the page, but allow in code editor
+    (function() {
+        var editorContainer = document.getElementById('ace-editor');
+        var editorClipboardCache = null; // Store what was copied from editor
+        
+        // Monitor keyboard shortcuts for copy/cut in editor
+        document.addEventListener('keydown', function(e) {
+            var key = e.key.toLowerCase();
+            var ctrl = e.ctrlKey || e.metaKey;
+            
+            // If copy/cut happens in editor, cache the selected text
+            if (editor && editor.isFocused() && ctrl && (key === 'c' || key === 'x')) {
+                // Store the selected text in cache
+                editorClipboardCache = editor.getSelectedText();
+                console.log('Cached from editor:', editorClipboardCache.substring(0, 50) + '...');
+            }
+            
+            // If paste happens in editor, verify it matches cache
+            if (editor && editor.isFocused() && ctrl && key === 'v') {
+                // Allow paste - will be validated on paste event
+                return;
+            }
+            
+            // Block copy/paste/cut outside editor
+            if (!editor || !editor.isFocused()) {
+                if (ctrl && (key === 'c' || key === 'v' || key === 'x')) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return false;
+                }
+            }
+        }, true);
+        
+        // Intercept paste events to validate clipboard content
+        document.addEventListener('paste', function(e) {
+            // Block paste outside editor
+            if (!editorContainer.contains(e.target) && !(editor && editor.isFocused())) {
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+            }
+            
+            // We're in the editor - validate clipboard content
+            var clipboardData = e.clipboardData || window.clipboardData;
+            var pastedText = clipboardData.getData('text');
+            
+            // Check if pasted text matches what was copied from editor
+            if (editorClipboardCache === null || pastedText !== editorClipboardCache) {
+                e.preventDefault();
+                e.stopPropagation();
+                alert('Pasting from external sources is not allowed. You can only copy and paste code within the editor.');
+                return false;
+            }
+            
+            // Valid paste - allow it
+            console.log('Paste validated and allowed');
+        }, true);
+        
+        // Also monitor ACE's internal copy event
+        editor.on('copy', function(text) {
+            editorClipboardCache = text;
+            console.log('Cached from ACE copy event:', text.substring(0, 50) + '...');
+        });
+        
+        editor.on('cut', function(text) {
+            editorClipboardCache = text;
+            console.log('Cached from ACE cut event:', text.substring(0, 50) + '...');
+        });
+        
+        // Prevent copy on the entire page except in code editor
+        document.addEventListener('copy', function(e) {
+            // Allow copy in editor
+            if (editorContainer && editorContainer.contains(e.target)) {
+                return;
+            }
+            
+            if (editor && editor.isFocused()) {
+                return;
+            }
+            
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+        }, true);
+        
+        // Prevent cut on the entire page except in code editor
+        document.addEventListener('cut', function(e) {
+            // Allow cut in editor
+            if (editorContainer && editorContainer.contains(e.target)) {
+                return;
+            }
+            
+            if (editor && editor.isFocused()) {
+                return;
+            }
+            
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+        }, true);
+        
+        // Prevent right-click context menu on problem description
+        var problemPanel = document.getElementById('problem-description-panel');
+        if (problemPanel) {
+            problemPanel.addEventListener('contextmenu', function(e) {
+                e.preventDefault();
+                return false;
+            });
+        }
+        
+        // Clear cache when user clicks outside editor (optional - for extra security)
+        document.addEventListener('click', function(e) {
+            if (!editorContainer.contains(e.target) && !editor.isFocused()) {
+                // Clear cache after a delay to allow paste operations
+                setTimeout(function() {
+                    if (!editor.isFocused()) {
+                        editorClipboardCache = null;
+                        console.log('Cache cleared - clicked outside editor');
+                    }
+                }, 500);
+            }
+        });
+    })();
 
     // Language Change Handler
     document.getElementById('language-select').addEventListener('change', function() {
