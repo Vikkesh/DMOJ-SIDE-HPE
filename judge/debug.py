@@ -4,7 +4,7 @@ CONTEST_TEMPLATE_DEBUG = True  # Enable debug features in contest templates
 
 # Proctoring debug settings
 PROCTORING_DEBUG = True  # Enable proctoring debug features
-PROCTORING_DISABLE_BACKEND = False  # Disable backend connection (run in local-only mode)
+PROCTORING_DISABLE_BACKEND = True # Disable backend connection (run in local-only mode)
 
 # General contest debug settings
 GENERAL_CONTEST_DEBUG = True  # General contest debugging features

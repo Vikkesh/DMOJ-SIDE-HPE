@@ -1,0 +1,805 @@
+{% extends "base.html" %}
+{% block title %}{{ problem.name }}{% endblock %}
+
+{% block media %}
+    {% include "comments/media-css.html" %}
+    <style>
+        /* Original problem.html styles */
+        .title-state {
+            font-size: 2em;
+            float: left;
+            width: 1.1em;
+            display: block;
+            margin-top: 0.16em;
+        }
+
+        .info-float a {
+            vertical-align: middle;
+        }
+
+        .problem-clarification {
+            border-bottom: 1px solid #ccc;
+            margin-top: 1em;
+            margin-bottom: 1em;
+        }
+
+        .clarifications-area h2 {
+            margin-bottom: 20px;
+        }
+
+        .problem-clarification .body {
+            display: inline-block;
+            padding-left: 3em;
+        }
+
+        .problem-info-entry {
+            padding-top: 0.5em;
+        }
+
+        /* LeetCode-style unified layout */
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        #unified-problem-container {
+            display: flex;
+            height: calc(100vh - 60px); /* Adjust based on your header height */
+            width: 100%;
+            position: fixed;
+            top: 60px; /* Adjust based on your header height */
+            left: 0;
+        }
+
+        /* Left Panel - Problem Description */
+        #problem-description-panel {
+            flex: 0 0 50%;
+            overflow-y: auto;
+            border-right: 2px solid #e0e0e0;
+            padding: 0;
+            background: #fff;
+        }
+        
+        #problem-description-panel .problem-title {
+            padding: 20px 20px 10px 20px;
+            border-bottom: 2px solid #e0e0e0;
+            margin-bottom: 0;
+        }
+        
+        #problem-description-panel .problem-stats {
+            padding: 15px 20px;
+            border-bottom: 1px solid #e0e0e0;
+            margin-bottom: 0;
+        }
+        
+        #problem-description-panel .problem-tabs {
+            padding: 0 20px;
+            margin-bottom: 0;
+        }
+        
+        #problem-description-panel .tab-content {
+            padding: 20px;
+        }
+
+        /* Right Panel - Code Editor + Submit */
+        #code-editor-panel {
+            flex: 0 0 50%;
+            display: flex;
+            flex-direction: column;
+            background: #f5f5f5;
+        }
+
+        /* Editor Header - Language selector and actions */
+        #editor-header {
+            padding: 15px 20px;
+            background: #fff;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        #editor-header select {
+            padding: 8px 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        #editor-header button {
+            padding: 8px 20px;
+            background: #5cb85c;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        #editor-header button:hover {
+            background: #4cae4c;
+        }
+
+        /* Code Editor Area */
+        #code-editor-area {
+            flex: 1;
+            padding: 0;
+            position: relative;
+        }
+
+        #ace-editor {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+        }
+
+        /* Bottom Panel - Test Results (slides up when active) */
+        #results-panel {
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            right: 0;
+            height: 0;
+            background: white;
+            border-top: 2px solid #e0e0e0;
+            overflow-y: auto;
+            transition: height 0.3s ease;
+            z-index: 100;
+        }
+
+        #results-panel.active {
+            height: 40%;
+        }
+
+        #results-panel-header {
+            padding: 10px 20px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        #results-panel-content {
+            padding: 20px;
+        }
+
+        /* Problem Title */
+        .problem-title {
+            margin-bottom: 20px;
+        }
+
+        .problem-title h2 {
+            margin: 0;
+        }
+
+        /* Problem Stats */
+        .problem-stats {
+            display: block;
+            margin-bottom: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+        
+        .problem-stats-line {
+            font-size: 14px;
+            color: #333;
+            line-height: 1.8;
+        }
+        
+        .problem-stats-line strong {
+            font-weight: 600;
+        }
+
+        /* Problem Content - extends .content-description styles */
+        .problem-content.content-description {
+            padding: 0;
+        }
+        
+        /* Additional tab-specific styling */
+        .tab-content .problem-content {
+            line-height: 1.5em;
+        }
+
+        /* Submission Status Styles */
+        .submission-status {
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            background: #f8f9fa;
+        }
+
+        .status-pending {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+        }
+
+        .status-accepted {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+        }
+
+        .status-wrong {
+            background: #f8d7da;
+            border-left: 4px solid #dc3545;
+        }
+
+        /* Test Cases */
+        .test-case {
+            padding: 10px;
+            margin-bottom: 8px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            border-left: 3px solid #ccc;
+        }
+
+        .test-case.passed {
+            border-left-color: #28a745;
+            background: #d4edda;
+        }
+
+        .test-case.failed {
+            border-left-color: #dc3545;
+            background: #f8d7da;
+        }
+
+        /* Resize Handle */
+        #resize-handle {
+            position: absolute;
+            left: 50%;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: #e0e0e0;
+            cursor: col-resize;
+            z-index: 1000;
+        }
+
+        #resize-handle:hover {
+            background: #007bff;
+        }
+
+        /* Loading Spinner */
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #007bff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Tabs for description/editorial/submissions */
+        .problem-tabs {
+            display: flex;
+            gap: 30px;
+            margin-bottom: 0;
+            margin-top: 0;
+            border-bottom: 2px solid #e0e0e0;
+            padding-top: 15px;
+        }
+
+        .problem-tab {
+            padding: 10px 0;
+            cursor: pointer;
+            color: #666;
+            font-weight: 400;
+            font-size: 15px;
+            border-bottom: 3px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.2s ease;
+        }
+        
+        .problem-tab:hover {
+            color: #333;
+        }
+
+        .problem-tab.active {
+            color: #0645AD;
+            border-bottom-color: #0645AD;
+            font-weight: 500;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+    
+    <script type="text/javascript" src="{{ ACE_URL }}/ace.js"></script>
+{% endblock %}
+
+{% block js_media %}
+    {% include "comments/media-js.html" %}
+{% endblock %}
+
+{% block body %}
+<script>
+    // If this page is loaded inside an iframe, notify the parent.
+    if (window.parent !== window) {
+        // Notify the parent wrapper that this page has loaded.
+        window.parent.postMessage(
+            { proctoringPage: "problem_unified" },
+            window.location.origin
+        );
+    }
+</script>
+
+<!-- CSRF Token for AJAX requests -->
+{% if request.user.is_authenticated %}
+<script>
+    // Get CSRF token from cookie
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    const csrftoken = getCookie('csrftoken');
+</script>
+{% endif %}
+
+<div id="unified-problem-container">
+    <!-- Resize Handle -->
+    <div id="resize-handle"></div>
+
+    <!-- Left Panel - Problem Description -->
+    <div id="problem-description-panel">
+        <!-- Problem Title (using original problem.html formatting) -->
+        <div class="problem-title">
+            {% if request.user.is_authenticated %}
+                {% if problem.id in completed_problem_ids %}
+                    <a href="{{ url('user_submissions', problem.code, request.user.username) }}">
+                        {% if problem.is_public or request.in_contest %}
+                            <i class="solved-problem-color title-state fa fa-check-circle"></i>
+                        {% else %}
+                            <i class="solved-problem-color title-state fa fa-lock"></i>
+                        {% endif %}
+                    </a>
+                {% elif problem.id in attempted_problems %}
+                    <a href="{{ url('user_submissions', problem.code, request.user.username) }}">
+                        {% if problem.is_public or request.in_contest %}
+                            <i class="attempted-problem-color title-state fa fa-minus-circle"></i>
+                        {% else %}
+                            <i class="attempted-problem-color title-state fa fa-lock"></i>
+                        {% endif %}
+                    </a>
+                {% endif %}
+            {% endif %}
+            <h2 style="display: inline-block">{{ title }}</h2>
+            {% if problem.is_organization_private %}
+                <span class="organization-tags">
+                    {% for org in problem.organizations.all() %}
+                        <span class="organization-tag">
+                            <a href="{{ org.get_absolute_url() }}">
+                                <i class="fa fa-lock"></i> {{ org.name }}
+                            </a>
+                        </span>
+                    {% endfor %}
+                </span>
+            {% endif %}
+        </div>
+
+        <!-- Problem Stats -->
+        <div class="problem-stats">
+            <div class="problem-stats-line">
+                <strong>Points:</strong> 
+                {% if contest_problem %}
+                    {{ contest_problem.points }}{% if contest_problem.partial %} {{ _('(partial)') }}{% endif %}
+                {% else %}
+                    {{ problem.points|floatformat }}{% if problem.partial %} {{ _('(partial)') }}{% endif %}
+                {% endif %}
+                &nbsp;&nbsp;&nbsp;
+                <strong>Time limit:</strong> {{ problem.time_limit }}s
+                &nbsp;&nbsp;&nbsp;
+                <strong>Memory limit:</strong> {{ problem.memory_limit|kbsimpleformat }}
+                &nbsp;&nbsp;&nbsp;
+                <strong>Users:</strong> {{ problem.user_count }}
+            </div>
+        </div>
+
+        <!-- Tabs: Description / Editorial / Submissions -->
+        <div class="problem-tabs">
+            <div class="problem-tab active" data-tab="description">{{ _('Description') }}</div>
+            {% if editorial and editorial.is_accessible_by(request.user) %}
+            <div class="problem-tab" data-tab="editorial">{{ _('Editorial') }}</div>
+            {% endif %}
+            {% if request.user.is_authenticated %}
+            <div class="problem-tab" data-tab="submissions">{{ _('My Submissions') }}</div>
+            {% endif %}
+        </div>
+
+        <!-- Tab Content: Description -->
+        <div id="tab-description" class="tab-content active">
+            <div class="problem-content content-description screen">
+                {% block description %}
+                    {% cache 86400 'problem_html' problem.id MATH_ENGINE LANGUAGE_CODE %}
+                        {{ description|markdown(problem.markdown_style, MATH_ENGINE)|reference|str|safe }}
+                    {% endcache %}
+
+                    {% with license=problem.license %}
+                        {% if license %}
+                            <span class="license">
+                                <a href="{{ url('license', license.key) }}">{{ license.display or license.name }}</a>
+                            </span>
+                        {% endif %}
+                    {% endwith %}
+                {% endblock %}
+            </div>
+        </div>
+
+        <!-- Tab Content: Editorial -->
+        {% if editorial and editorial.is_accessible_by(request.user) %}
+        <div id="tab-editorial" class="tab-content">
+            <div class="problem-content">
+                <!-- Editorial content will be loaded here -->
+                <p>{{ _('Loading editorial...') }}</p>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Tab Content: Submissions -->
+        {% if request.user.is_authenticated %}
+        <div id="tab-submissions" class="tab-content">
+            <div class="problem-content">
+                <!-- User submissions will be loaded here -->
+                <p>{{ _('Loading submissions...') }}</p>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Report Issue / Request Clarification Button -->
+        {% if request.user.is_authenticated and not request.profile.mute %}
+            <a href="{{ url('new_problem_ticket', problem.code) }}" class="button clarify" style="margin-bottom: 20px;">
+                {%- if contest_problem and contest_problem.contest.use_clarifications and request.profile.current_contest.live -%}
+                    {{ _('Request clarification') }}
+                {%- else -%}
+                    {{ _('Report an issue') }}
+                {%- endif -%}
+            </a>
+        {% endif %}
+    </div>
+
+    <!-- Right Panel - Code Editor -->
+    <div id="code-editor-panel">
+        <!-- Editor Header -->
+        <div id="editor-header">
+            <div>
+                <label for="language-select" style="margin-right: 10px; font-weight: 500;">Language:</label>
+                <select id="language-select" name="language">
+                    {% for lang in problem.usable_languages.all() %}
+                        <option value="{{ lang.id }}" data-ace-mode="{{ lang.ace }}"
+                                {% if lang.id == default_lang.id %}selected{% endif %}>
+                            {{ lang.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <button type="button" id="reset-code-btn" style="background: #6c757d; margin-right: 10px;">
+                    Reset Code
+                </button>
+                <button type="submit" id="submit-code-btn">
+                    Submit Solution
+                </button>
+            </div>
+        </div>
+
+        <!-- Code Editor -->
+        <div id="code-editor-area">
+            <div id="ace-editor"></div>
+        </div>
+    </div>
+
+    <!-- Bottom Panel - Test Results (Hidden by default) -->
+    <div id="results-panel">
+        <div id="results-panel-header">
+            <h3 style="margin: 0; font-size: 16px;">Submission Results</h3>
+            <button type="button" onclick="toggleResultsPanel()" style="padding: 4px 12px; background: #dc3545;">
+                Close
+            </button>
+        </div>
+        <div id="results-panel-content">
+            <!-- Results will be loaded here dynamically -->
+        </div>
+    </div>
+</div>
+
+<script>
+    // ACE Editor Setup
+    var editor = ace.edit("ace-editor");
+    editor.setTheme("ace/theme/{{ request.profile.resolved_ace_theme }}");
+    editor.session.setMode("ace/mode/{{ default_lang.ace }}");
+    editor.setOptions({
+        fontSize: "14px",
+        showPrintMargin: false,
+        highlightActiveLine: true,
+        enableBasicAutocompletion: true,
+        enableLiveAutocompletion: true
+    });
+
+    // Set initial template code
+    {% if default_lang.template %}
+    editor.setValue({{ default_lang.template|tojson }}, -1);
+    {% endif %}
+
+    // Language Change Handler
+    document.getElementById('language-select').addEventListener('change', function() {
+        var selectedOption = this.options[this.selectedIndex];
+        var aceMode = selectedOption.getAttribute('data-ace-mode');
+        editor.session.setMode('ace/mode/' + aceMode);
+        
+        // Load language template
+        var languageId = this.value;
+        fetch('/ajax/language_template/?id=' + languageId)
+            .then(response => response.json())
+            .then(data => {
+                if (data.template && confirm('Load template for this language? (Current code will be lost)')) {
+                    editor.setValue(data.template, -1);
+                }
+            })
+            .catch(error => console.error('Error loading template:', error));
+    });
+
+    // Submit Code Handler
+    document.getElementById('submit-code-btn').addEventListener('click', function() {
+        var code = editor.getValue();
+        var languageId = document.getElementById('language-select').value;
+        
+        if (!code.trim()) {
+            alert('Please write some code before submitting!');
+            return;
+        }
+
+        // Show loading in results panel
+        document.getElementById('results-panel-content').innerHTML = 
+            '<div style="text-align: center; padding: 40px;"><div class="loading-spinner"></div><p>Submitting your code...</p></div>';
+        toggleResultsPanel(true);
+
+        // Submit via AJAX
+        var formData = new FormData();
+        formData.append('language', languageId);
+        formData.append('source', code);
+
+        fetch('/problem/{{ problem.code }}/submit', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': csrftoken
+            },
+            credentials: 'same-origin'
+        })
+        .then(response => {
+            if (!response.ok && response.status === 429) {
+                return response.text().then(text => {
+                    throw new Error('You submitted too many submissions.');
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.submission) {
+                // Poll for submission status
+                pollSubmissionStatus(data.submission);
+            } else if (data.error) {
+                showError(data.error);
+            } else {
+                showError('Submission failed');
+            }
+        })
+        .catch(error => {
+            showError('Error: ' + error.message);
+        });
+    });
+
+    // Reset Code Handler
+    document.getElementById('reset-code-btn').addEventListener('click', function() {
+        if (confirm('Are you sure you want to reset your code?')) {
+            var languageId = document.getElementById('language-select').value;
+            fetch('/ajax/language_template/?id=' + languageId)
+                .then(response => response.json())
+                .then(data => {
+                    editor.setValue(data.template || '', -1);
+                })
+                .catch(error => console.error('Error resetting code:', error));
+        }
+    });
+
+    // Toggle Results Panel
+    function toggleResultsPanel(show) {
+        var panel = document.getElementById('results-panel');
+        if (show === true) {
+            panel.classList.add('active');
+        } else if (show === false) {
+            panel.classList.remove('active');
+        } else {
+            panel.classList.toggle('active');
+        }
+    }
+
+    // Poll Submission Status
+    function pollSubmissionStatus(submissionId) {
+        var pollInterval = setInterval(function() {
+            fetch('/ajax/submission_status/?id=' + submissionId)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        clearInterval(pollInterval);
+                        showError(data.error);
+                        return;
+                    }
+                    
+                    updateSubmissionResults(data);
+                    
+                    if (data.is_graded) {
+                        clearInterval(pollInterval);
+                    }
+                })
+                .catch(error => {
+                    clearInterval(pollInterval);
+                    showError('Failed to fetch results: ' + error.message);
+                });
+        }, 1000); // Poll every second
+    }
+
+    // Update Submission Results Display
+    function updateSubmissionResults(data) {
+        var html = '<div class="submission-status ' + 
+                   (data.status === 'AC' ? 'status-accepted' : 
+                    data.is_graded ? 'status-wrong' : 'status-pending') + '">';
+        
+        html += '<h4>' + data.status_display + '</h4>';
+        html += '<p>Time: ' + (data.time || '---') + ' | Memory: ' + (data.memory || '---') + '</p>';
+        
+        if (data.test_cases && data.test_cases.length > 0) {
+            html += '<div style="margin-top: 15px;"><strong>Test Cases:</strong></div>';
+            data.test_cases.forEach(function(tc, index) {
+                html += '<div class="test-case ' + (tc.status === 'AC' ? 'passed' : 'failed') + '">';
+                html += '<strong>Test ' + (index + 1) + ':</strong> ' + tc.status;
+                if (tc.time) html += ' | Time: ' + tc.time;
+                if (tc.memory) html += ' | Memory: ' + tc.memory;
+                html += '</div>';
+            });
+        }
+        
+        html += '</div>';
+        
+        document.getElementById('results-panel-content').innerHTML = html;
+    }
+
+    // Show Error Message
+    function showError(message) {
+        document.getElementById('results-panel-content').innerHTML = 
+            '<div class="submission-status status-wrong"><h4>Error</h4><p>' + message + '</p></div>';
+    }
+
+    // Tab Switching
+    document.querySelectorAll('.problem-tab').forEach(function(tab) {
+        tab.addEventListener('click', function() {
+            // Remove active class from all tabs
+            document.querySelectorAll('.problem-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            
+            // Add active class to clicked tab
+            this.classList.add('active');
+            var tabName = this.getAttribute('data-tab');
+            document.getElementById('tab-' + tabName).classList.add('active');
+            
+            // Load content if needed
+            if (tabName === 'editorial' || tabName === 'submissions') {
+                loadTabContent(tabName);
+            }
+        });
+    });
+
+    // Load Tab Content via AJAX
+    function loadTabContent(tabName) {
+        var contentDiv = document.getElementById('tab-' + tabName).querySelector('.problem-content');
+        if (contentDiv.innerHTML.includes('Loading')) {
+            var url = '/problem/{{ problem.code }}/' + tabName + '/ajax';
+            
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    if (tabName === 'editorial') {
+                        contentDiv.innerHTML = data.content || '<p>No editorial available.</p>';
+                    } else if (tabName === 'submissions') {
+                        if (data.submissions && data.submissions.length > 0) {
+                            var html = '<table style="width: 100%; border-collapse: collapse;">';
+                            html += '<thead><tr style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">';
+                            html += '<th style="padding: 10px; text-align: left;">Date</th>';
+                            html += '<th style="padding: 10px; text-align: left;">Status</th>';
+                            html += '<th style="padding: 10px; text-align: left;">Language</th>';
+                            html += '<th style="padding: 10px; text-align: right;">Time</th>';
+                            html += '<th style="padding: 10px; text-align: right;">Memory</th>';
+                            html += '<th style="padding: 10px; text-align: right;">Points</th>';
+                            html += '</tr></thead><tbody>';
+                            
+                            data.submissions.forEach(function(sub) {
+                                var statusClass = sub.status === 'AC' ? 'color: #28a745;' : 
+                                                 sub.status.startsWith('W') ? 'color: #dc3545;' : 'color: #6c757d;';
+                                html += '<tr style="border-bottom: 1px solid #dee2e6;">';
+                                html += '<td style="padding: 10px;">' + new Date(sub.date).toLocaleString() + '</td>';
+                                html += '<td style="padding: 10px; ' + statusClass + ' font-weight: 500;">' + sub.status_display + '</td>';
+                                html += '<td style="padding: 10px;">' + sub.language + '</td>';
+                                html += '<td style="padding: 10px; text-align: right;">' + (sub.time || '---') + '</td>';
+                                html += '<td style="padding: 10px; text-align: right;">' + (sub.memory || '---') + '</td>';
+                                html += '<td style="padding: 10px; text-align: right;">' + (sub.points !== null ? sub.points : '---') + '</td>';
+                                html += '</tr>';
+                            });
+                            
+                            html += '</tbody></table>';
+                            contentDiv.innerHTML = html;
+                        } else {
+                            contentDiv.innerHTML = '<p>No submissions yet.</p>';
+                        }
+                    }
+                })
+                .catch(error => {
+                    contentDiv.innerHTML = '<p>Failed to load content: ' + error.message + '</p>';
+                });
+        }
+    }
+
+    // Resizable Panels
+    (function() {
+        var handle = document.getElementById('resize-handle');
+        var leftPanel = document.getElementById('problem-description-panel');
+        var rightPanel = document.getElementById('code-editor-panel');
+        var container = document.getElementById('unified-problem-container');
+        var isResizing = false;
+
+        handle.addEventListener('mousedown', function(e) {
+            isResizing = true;
+            document.body.style.cursor = 'col-resize';
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', function(e) {
+            if (!isResizing) return;
+            
+            var containerRect = container.getBoundingClientRect();
+            var percentage = ((e.clientX - containerRect.left) / containerRect.width) * 100;
+            
+            if (percentage >= 30 && percentage <= 70) {
+                leftPanel.style.flex = '0 0 ' + percentage + '%';
+                rightPanel.style.flex = '0 0 ' + (100 - percentage) + '%';
+                handle.style.left = percentage + '%';
+            }
+        });
+
+        document.addEventListener('mouseup', function() {
+            isResizing = false;
+            document.body.style.cursor = 'default';
+        });
+    })();
+</script>
+{% endblock %}
+
+{% block bodyend %}
+    {% if REQUIRE_JAX %}
+        {% include "mathjax-load.html" %}
+    {% endif %}
+{% endblock %}

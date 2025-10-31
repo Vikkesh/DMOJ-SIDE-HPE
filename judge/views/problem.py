@@ -738,7 +738,27 @@ class ProblemSubmit(LoginRequiredMixin, ProblemMixin, TitleMixin, SingleObjectFo
         self.new_submission.source = source
         self.new_submission.judge(force_judge=True, judge_id=form.cleaned_data['judge'])
 
+        # Handle AJAX requests for unified problem page
+        if self.request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({
+                'submission': self.new_submission.id,
+                'status': 'success'
+            })
+
         return super().form_valid(form)
+
+    def form_invalid(self, form):
+        # Handle AJAX requests for unified problem page
+        if self.request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            errors = {}
+            for field, error_list in form.errors.items():
+                errors[field] = [str(e) for e in error_list]
+            return JsonResponse({
+                'error': 'Form validation failed',
+                'errors': errors
+            }, status=400)
+        
+        return super().form_invalid(form)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -808,3 +828,146 @@ class ProblemClone(ProblemMixin, PermissionRequiredMixin, TitleMixin, SingleObje
             revisions.set_comment(_('Cloned problem from %s') % old_code)
 
         return HttpResponseRedirect(reverse('admin:judge_problem_change', args=(problem.id,)))
+
+
+# Unified Problem Page View (LeetCode-style)
+class ProblemUnified(ProblemDetail):
+    template_name = 'problem/problem_unified.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        
+        # Add default language for code editor
+        if user.is_authenticated:
+            # Get user's preferred language or first available language
+            default_lang = None
+            if hasattr(user.profile, 'language'):
+                default_lang = user.profile.language
+            
+            if not default_lang or default_lang not in self.object.usable_languages.all():
+                default_lang = self.object.usable_languages.first()
+            
+            context['default_lang'] = default_lang
+        else:
+            context['default_lang'] = self.object.usable_languages.first()
+        
+        # Add ACE editor URL
+        context['ACE_URL'] = settings.ACE_URL if hasattr(settings, 'ACE_URL') else '/static/ace'
+        
+        return context
+
+
+# AJAX endpoint to get language template
+class LanguageTemplateAjax(View):
+    def get(self, request):
+        language_id = request.GET.get('id')
+        
+        if not language_id:
+            return JsonResponse({'error': 'Language ID required'}, status=400)
+        
+        try:
+            language = Language.objects.get(id=language_id)
+            return JsonResponse({
+                'template': language.template,
+                'ace_mode': language.ace,
+                'name': language.name
+            })
+        except Language.DoesNotExist:
+            return JsonResponse({'error': 'Language not found'}, status=404)
+
+
+# AJAX endpoint to get submission status
+class SubmissionStatusAjax(View):
+    def get(self, request):
+        submission_id = request.GET.get('id')
+        
+        if not submission_id:
+            return JsonResponse({'error': 'Submission ID required'}, status=400)
+        
+        try:
+            submission = Submission.objects.select_related('language', 'problem').get(id=submission_id)
+            
+            # Check if user has permission to view this submission
+            if not request.user.is_authenticated:
+                return JsonResponse({'error': 'Authentication required'}, status=403)
+            
+            if submission.user_id != request.user.profile.id and not request.user.has_perm('judge.view_all_submission'):
+                return JsonResponse({'error': 'Permission denied'}, status=403)
+            
+            # Build response data
+            data = {
+                'id': submission.id,
+                'status': submission.status,
+                'status_display': submission.get_status_display(),
+                'is_graded': submission.is_graded,
+                'time': str(submission.time) if submission.time else None,
+                'memory': str(submission.memory) if submission.memory else None,
+                'points': float(submission.points) if submission.points is not None else None,
+                'language': submission.language.name,
+            }
+            
+            # Add test case results if available
+            if submission.is_graded and hasattr(submission, 'test_cases'):
+                test_cases = []
+                for case in submission.test_cases.all():
+                    test_cases.append({
+                        'status': case.status,
+                        'time': str(case.time) if case.time else None,
+                        'memory': str(case.memory) if case.memory else None,
+                    })
+                data['test_cases'] = test_cases
+            
+            return JsonResponse(data)
+            
+        except Submission.DoesNotExist:
+            return JsonResponse({'error': 'Submission not found'}, status=404)
+
+
+# AJAX endpoint to get problem editorial
+class ProblemEditorialAjax(ProblemMixin, View):
+    def get(self, request, problem):
+        try:
+            editorial = Solution.objects.get(problem=self.object)
+            
+            # Check if user has permission to view editorial
+            if not editorial.is_public and not self.object.is_editable_by(request.user):
+                return JsonResponse({'error': 'Editorial not available'}, status=403)
+            
+            from judge.jinja2.markdown import markdown
+            content = markdown(editorial.content, 'solution')
+            
+            return JsonResponse({
+                'content': content,
+                'publish_on': editorial.publish_on.isoformat() if editorial.publish_on else None,
+            })
+            
+        except Solution.DoesNotExist:
+            return JsonResponse({'error': 'Editorial not found'}, status=404)
+
+
+# AJAX endpoint to get user's submissions for a problem
+class ProblemSubmissionsAjax(ProblemMixin, View):
+    def get(self, request, problem):
+        if not request.user.is_authenticated:
+            return JsonResponse({'error': 'Authentication required'}, status=403)
+        
+        submissions = Submission.objects.filter(
+            user=request.user.profile,
+            problem=self.object
+        ).select_related('language').order_by('-date')[:20]  # Last 20 submissions
+        
+        submissions_data = []
+        for sub in submissions:
+            submissions_data.append({
+                'id': sub.id,
+                'date': sub.date.isoformat(),
+                'status': sub.status,
+                'status_display': sub.get_status_display(),
+                'language': sub.language.name,
+                'time': str(sub.time) if sub.time else None,
+                'memory': str(sub.memory) if sub.memory else None,
+                'points': float(sub.points) if sub.points is not None else None,
+            })
+        
+        return JsonResponse({'submissions': submissions_data})
