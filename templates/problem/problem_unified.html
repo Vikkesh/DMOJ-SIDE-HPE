@@ -42,17 +42,21 @@
             padding: 0;
             overflow: hidden;
         }
+        
+        /* Hide footer on unified page */
+        footer {
+            display: none !important;
+        }
 
         #unified-problem-container {
             display: flex;
-            height: calc(100vh - 60px); /* Adjust based on your header height */
+            height: calc(100vh - 60px);
             width: 100%;
             position: fixed;
             top: 60px; /* Adjust based on your header height */
             left: 0;
-        }
-
-        /* Left Panel - Problem Description */
+            overflow: hidden;
+        }        /* Left Panel - Problem Description */
         #problem-description-panel {
             flex: 0 0 50%;
             overflow-y: auto;
@@ -88,6 +92,7 @@
             display: flex;
             flex-direction: column;
             background: #f5f5f5;
+            position: relative;
         }
 
         /* Editor Header - Language selector and actions */
@@ -98,6 +103,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-shrink: 0;
         }
 
         #editor-header select {
@@ -124,9 +130,10 @@
 
         /* Code Editor Area */
         #code-editor-area {
-            flex: 1;
+            flex: 1; /* Takes full space when results hidden */
             padding: 0;
             position: relative;
+            min-height: 200px;
         }
 
         #ace-editor {
@@ -137,22 +144,38 @@
             bottom: 0;
         }
 
-        /* Bottom Panel - Test Results (slides up when active) */
-        #results-panel {
-            position: fixed;
-            bottom: 0;
-            left: 50%;
-            right: 0;
-            height: 0;
-            background: white;
-            border-top: 2px solid #e0e0e0;
-            overflow-y: auto;
-            transition: height 0.3s ease;
-            z-index: 100;
+        /* Vertical Resize Handle (for editor/results split) */
+        #vertical-resize-handle {
+            height: 4px;
+            background: #e0e0e0;
+            cursor: row-resize;
+            flex-shrink: 0;
+            position: relative;
+            z-index: 10;
+            transition: background 0.2s ease;
+            display: none; /* Hidden by default */
         }
 
-        #results-panel.active {
-            height: 40%;
+        #vertical-resize-handle:hover {
+            background: #007bff;
+        }
+
+        #vertical-resize-handle:active {
+            background: #0056b3;
+        }
+
+        /* Bottom Panel - Test Results */
+        #results-panel {
+            flex: 0 0 40%;
+            background: white;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            min-height: 150px;
+        }
+
+        #results-panel.hidden {
+            display: none;
         }
 
         #results-panel-header {
@@ -162,10 +185,13 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-shrink: 0;
         }
 
         #results-panel-content {
             padding: 20px;
+            flex: 1;
+            overflow-y: auto;
         }
 
         /* Problem Title */
@@ -257,10 +283,15 @@
             background: #e0e0e0;
             cursor: col-resize;
             z-index: 1000;
+            transition: background 0.2s ease;
         }
 
         #resize-handle:hover {
             background: #007bff;
+        }
+
+        #resize-handle:active {
+            background: #0056b3;
         }
 
         /* Loading Spinner */
@@ -419,14 +450,11 @@
             </div>
         </div>
 
-        <!-- Tabs: Description / Editorial / Submissions -->
+        <!-- Tabs: Description / Editorial -->
         <div class="problem-tabs">
             <div class="problem-tab active" data-tab="description">{{ _('Description') }}</div>
             {% if editorial and editorial.is_accessible_by(request.user) %}
             <div class="problem-tab" data-tab="editorial">{{ _('Editorial') }}</div>
-            {% endif %}
-            {% if request.user.is_authenticated %}
-            <div class="problem-tab" data-tab="submissions">{{ _('My Submissions') }}</div>
             {% endif %}
         </div>
 
@@ -455,16 +483,6 @@
             <div class="problem-content">
                 <!-- Editorial content will be loaded here -->
                 <p>{{ _('Loading editorial...') }}</p>
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- Tab Content: Submissions -->
-        {% if request.user.is_authenticated %}
-        <div id="tab-submissions" class="tab-content">
-            <div class="problem-content">
-                <!-- User submissions will be loaded here -->
-                <p>{{ _('Loading submissions...') }}</p>
             </div>
         </div>
         {% endif %}
@@ -510,18 +528,21 @@
         <div id="code-editor-area">
             <div id="ace-editor"></div>
         </div>
-    </div>
 
-    <!-- Bottom Panel - Test Results (Hidden by default) -->
-    <div id="results-panel">
-        <div id="results-panel-header">
-            <h3 style="margin: 0; font-size: 16px;">Submission Results</h3>
-            <button type="button" onclick="toggleResultsPanel()" style="padding: 4px 12px; background: #dc3545;">
-                Close
-            </button>
-        </div>
-        <div id="results-panel-content">
-            <!-- Results will be loaded here dynamically -->
+        <!-- Vertical Resize Handle -->
+        <div id="vertical-resize-handle"></div>
+
+        <!-- Bottom Panel - Test Results -->
+        <div id="results-panel" class="hidden">
+            <div id="results-panel-header">
+                <h3 style="margin: 0; font-size: 16px;">Submission Results</h3>
+                <button type="button" onclick="toggleResultsPanel()" style="padding: 4px 12px; background: #dc3545;">
+                    Close
+                </button>
+            </div>
+            <div id="results-panel-content">
+                <!-- Results will be loaded here dynamically -->
+            </div>
         </div>
     </div>
 </div>
@@ -529,6 +550,7 @@
 <script>
     // ACE Editor Setup
     var editor = ace.edit("ace-editor");
+    window.editor = editor; // Store globally for resize handlers
     editor.setTheme("ace/theme/{{ request.profile.resolved_ace_theme }}");
     editor.session.setMode("ace/mode/{{ default_lang.ace }}");
     editor.setOptions({
@@ -550,13 +572,22 @@
         var aceMode = selectedOption.getAttribute('data-ace-mode');
         editor.session.setMode('ace/mode/' + aceMode);
         
-        // Load language template
+        // Load language template automatically navigate to /admin/judge/language/
         var languageId = this.value;
         fetch('/ajax/language_template/?id=' + languageId)
             .then(response => response.json())
             .then(data => {
-                if (data.template && confirm('Load template for this language? (Current code will be lost)')) {
-                    editor.setValue(data.template, -1);
+                if (data.template) {
+                    // Only ask for confirmation if there's existing code that's not empty
+                    var currentCode = editor.getValue().trim();
+                    if (currentCode && currentCode !== data.template.trim()) {
+                        if (confirm('Load template for ' + data.name + '? (Current code will be lost)')) {
+                            editor.setValue(data.template, -1);
+                        }
+                    } else {
+                        // No code or same template, just load it
+                        editor.setValue(data.template, -1);
+                    }
                 }
             })
             .catch(error => console.error('Error loading template:', error));
@@ -630,12 +661,37 @@
     // Toggle Results Panel
     function toggleResultsPanel(show) {
         var panel = document.getElementById('results-panel');
+        var codeArea = document.getElementById('code-editor-area');
+        var vHandle = document.getElementById('vertical-resize-handle');
+        
         if (show === true) {
-            panel.classList.add('active');
+            panel.classList.remove('hidden');
+            vHandle.style.display = 'block';
+            codeArea.style.flex = '0 0 60%';
+            panel.style.flex = '0 0 40%';
         } else if (show === false) {
-            panel.classList.remove('active');
+            panel.classList.add('hidden');
+            vHandle.style.display = 'none';
+            codeArea.style.flex = '1';
+            panel.style.flex = '0 0 0%';
         } else {
-            panel.classList.toggle('active');
+            panel.classList.toggle('hidden');
+            if (panel.classList.contains('hidden')) {
+                vHandle.style.display = 'none';
+                codeArea.style.flex = '1';
+                panel.style.flex = '0 0 0%';
+            } else {
+                vHandle.style.display = 'block';
+                codeArea.style.flex = '0 0 60%';
+                panel.style.flex = '0 0 40%';
+            }
+        }
+        
+        // Resize ACE editor to fit new dimensions
+        if (window.editor) {
+            setTimeout(function() {
+                editor.resize();
+            }, 100);
         }
     }
 
@@ -708,7 +764,7 @@
             document.getElementById('tab-' + tabName).classList.add('active');
             
             // Load content if needed
-            if (tabName === 'editorial' || tabName === 'submissions') {
+            if (tabName === 'editorial') {
                 loadTabContent(tabName);
             }
         });
@@ -725,36 +781,6 @@
                 .then(data => {
                     if (tabName === 'editorial') {
                         contentDiv.innerHTML = data.content || '<p>No editorial available.</p>';
-                    } else if (tabName === 'submissions') {
-                        if (data.submissions && data.submissions.length > 0) {
-                            var html = '<table style="width: 100%; border-collapse: collapse;">';
-                            html += '<thead><tr style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">';
-                            html += '<th style="padding: 10px; text-align: left;">Date</th>';
-                            html += '<th style="padding: 10px; text-align: left;">Status</th>';
-                            html += '<th style="padding: 10px; text-align: left;">Language</th>';
-                            html += '<th style="padding: 10px; text-align: right;">Time</th>';
-                            html += '<th style="padding: 10px; text-align: right;">Memory</th>';
-                            html += '<th style="padding: 10px; text-align: right;">Points</th>';
-                            html += '</tr></thead><tbody>';
-                            
-                            data.submissions.forEach(function(sub) {
-                                var statusClass = sub.status === 'AC' ? 'color: #28a745;' : 
-                                                 sub.status.startsWith('W') ? 'color: #dc3545;' : 'color: #6c757d;';
-                                html += '<tr style="border-bottom: 1px solid #dee2e6;">';
-                                html += '<td style="padding: 10px;">' + new Date(sub.date).toLocaleString() + '</td>';
-                                html += '<td style="padding: 10px; ' + statusClass + ' font-weight: 500;">' + sub.status_display + '</td>';
-                                html += '<td style="padding: 10px;">' + sub.language + '</td>';
-                                html += '<td style="padding: 10px; text-align: right;">' + (sub.time || '---') + '</td>';
-                                html += '<td style="padding: 10px; text-align: right;">' + (sub.memory || '---') + '</td>';
-                                html += '<td style="padding: 10px; text-align: right;">' + (sub.points !== null ? sub.points : '---') + '</td>';
-                                html += '</tr>';
-                            });
-                            
-                            html += '</tbody></table>';
-                            contentDiv.innerHTML = html;
-                        } else {
-                            contentDiv.innerHTML = '<p>No submissions yet.</p>';
-                        }
                     }
                 })
                 .catch(error => {
@@ -765,6 +791,7 @@
 
     // Resizable Panels
     (function() {
+        // Horizontal resize (left/right panels)
         var handle = document.getElementById('resize-handle');
         var leftPanel = document.getElementById('problem-description-panel');
         var rightPanel = document.getElementById('code-editor-panel');
@@ -774,6 +801,7 @@
         handle.addEventListener('mousedown', function(e) {
             isResizing = true;
             document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
             e.preventDefault();
         });
 
@@ -787,12 +815,92 @@
                 leftPanel.style.flex = '0 0 ' + percentage + '%';
                 rightPanel.style.flex = '0 0 ' + (100 - percentage) + '%';
                 handle.style.left = percentage + '%';
+                
+                // Trigger ACE editor resize
+                if (window.editor) {
+                    editor.resize();
+                }
             }
         });
 
         document.addEventListener('mouseup', function() {
-            isResizing = false;
-            document.body.style.cursor = 'default';
+            if (isResizing) {
+                isResizing = false;
+                document.body.style.cursor = 'default';
+                document.body.style.userSelect = 'auto';
+            }
+        });
+
+        // Vertical resize (code editor/results split)
+        var vHandle = document.getElementById('vertical-resize-handle');
+        var codeArea = document.getElementById('code-editor-area');
+        var resultsPanel = document.getElementById('results-panel');
+        var isVResizing = false;
+
+        vHandle.addEventListener('mousedown', function(e) {
+            // Show results panel if hidden when user tries to resize
+            if (resultsPanel.classList.contains('hidden')) {
+                resultsPanel.classList.remove('hidden');
+                vHandle.style.display = 'block';
+            }
+            isVResizing = true;
+            document.body.style.cursor = 'row-resize';
+            document.body.style.userSelect = 'none';
+            e.preventDefault();
+            e.stopPropagation();
+        });
+
+        document.addEventListener('mousemove', function(e) {
+            if (!isVResizing) return;
+            
+            var rightPanelRect = rightPanel.getBoundingClientRect();
+            var headerHeight = document.getElementById('editor-header').offsetHeight;
+            var handleHeight = 4; // Height of vertical resize handle
+            var availableHeight = rightPanelRect.height - headerHeight - handleHeight;
+            
+            // Calculate position relative to the start of code area
+            var relativeY = e.clientY - rightPanelRect.top - headerHeight;
+            var percentage = (relativeY / availableHeight) * 100;
+            
+            // Constrain between 20% and 80% for better usability
+            if (percentage >= 20 && percentage <= 80) {
+                var editorPercent = percentage;
+                var resultsPercent = 100 - percentage;
+                
+                codeArea.style.flex = '0 0 ' + editorPercent + '%';
+                resultsPanel.style.flex = '0 0 ' + resultsPercent + '%';
+                
+                // Trigger ACE editor resize
+                if (window.editor) {
+                    setTimeout(function() {
+                        editor.resize();
+                    }, 0);
+                }
+            }
+        });
+
+        document.addEventListener('mouseup', function() {
+            if (isVResizing) {
+                isVResizing = false;
+                document.body.style.cursor = 'default';
+                document.body.style.userSelect = 'auto';
+                
+                // Final resize of ACE editor
+                if (window.editor) {
+                    setTimeout(function() {
+                        editor.resize();
+                    }, 0);
+                }
+            }
+        });
+
+        // Prevent text selection during resize
+        handle.addEventListener('selectstart', function(e) {
+            e.preventDefault();
+        });
+        
+        vHandle.addEventListener('selectstart', function(e) {
+            e.preventDefault();
         });
     })();
 </script>
