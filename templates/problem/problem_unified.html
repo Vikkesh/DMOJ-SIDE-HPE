@@ -670,7 +670,7 @@
                 Run Code
             </button>
             <button type="submit" id="submit-code-btn">
-                Submit Solution
+                Submit and Next
             </button>
         </div>
 
@@ -989,8 +989,16 @@
         })
         .then(data => {
             if (data.submission) {
-                // Poll for submission status
-                pollSubmissionStatus(data.submission);
+                // Show immediate success message
+                document.getElementById('results-panel-content').innerHTML = 
+                    '<div style="text-align: center; padding: 40px;">' +
+                    '<div class="loading-spinner"></div>' +
+                    '<p style="margin-top: 20px; font-size: 16px;">✓ Submitted Successfully!</p>' +
+                    '<p style="color: #666;">Evaluating your solution...</p>' +
+                    '</div>';
+                
+                // Poll for submission status and wait for result
+                pollSubmissionStatusWithRedirect(data.submission);
             } else if (data.error) {
                 showError(data.error);
             } else {
@@ -1069,6 +1077,87 @@
                     
                     if (data.is_graded) {
                         clearInterval(pollInterval);
+                    }
+                })
+                .catch(error => {
+                    clearInterval(pollInterval);
+                    showError('Failed to fetch results: ' + error.message);
+                });
+        }, 1000); // Poll every second
+    }
+
+    // Poll Submission Status with Smart Redirect (for Submit and Next button)
+    function pollSubmissionStatusWithRedirect(submissionId) {
+        var pollInterval = setInterval(function() {
+            fetch('/ajax/submission_status/?id=' + submissionId)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        clearInterval(pollInterval);
+                        showError(data.error);
+                        return;
+                    }
+                    
+                    updateSubmissionResults(data);
+                    
+                    if (data.is_graded) {
+                        clearInterval(pollInterval);
+                        
+                        // Check if submission was successful
+                        var isSuccess = false;
+                        
+                        // Check test cases
+                        if (data.test_cases && data.test_cases.length > 0) {
+                            var allPassed = data.test_cases.every(function(tc) {
+                                return tc.status === 'AC';
+                            });
+                            if (allPassed) {
+                                isSuccess = true;
+                            }
+                        }
+                        
+                        // Also check status directly
+                        if (data.status === 'AC') {
+                            isSuccess = true;
+                        }
+                        
+                        // Check points
+                        if (data.points !== undefined && data.total_points !== undefined) {
+                            if (data.points === data.total_points && data.total_points > 0) {
+                                isSuccess = true;
+                            }
+                        }
+                        
+                        // Handle redirect based on success
+                        if (isSuccess) {
+                            // Success - Show results and redirect message immediately
+                            document.getElementById('results-panel-content').innerHTML = 
+                                '<div style="text-align: center; padding: 30px;">' +
+                                '<div style="font-size: 48px; color: #4caf50; margin-bottom: 15px;">✓</div>' +
+                                '<h3 style="color: #2e7d32; margin: 0 0 10px 0;">Correct Answer!</h3>' +
+                                '<p style="color: #666; margin-bottom: 20px;">All test cases passed</p>' +
+                                '<div class="loading-spinner"></div>' +
+                                '<p style="margin-top: 15px; color: #2e7d32; font-weight: 500;">Redirecting to problem list...</p>' +
+                                '</div>';
+                            
+                            // Redirect after 2 seconds
+                            setTimeout(function() {
+                                window.location.href = '{{ url("problem_list") }}';
+                            }, 2000);
+                        } else {
+                            // Failed - Ask user if they want to continue
+                            setTimeout(function() {
+                                var goNext = confirm(
+                                    '❌ Your solution was not accepted.\n\n' +
+                                    'Do you want to go to the next problem anyway?'
+                                );
+                                
+                                if (goNext) {
+                                    window.location.href = '{{ url("problem_list") }}';
+                                }
+                                // If user clicks Cancel, they stay on the page to fix their code
+                            }, 500);
+                        }
                     }
                 })
                 .catch(error => {
