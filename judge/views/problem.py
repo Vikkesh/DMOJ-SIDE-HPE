@@ -713,17 +713,35 @@ class ProblemSubmit(LoginRequiredMixin, ProblemMixin, TitleMixin, SingleObjectFo
                                    _('You have exceeded the submission limit for this problem.'))
 
         with transaction.atomic():
-            # Check if this is a test run (from Run Code button)
-            is_test_mode = self.request.POST.get('test_mode') == 'true'
+            # Check if this is a test run or official submission
+            is_test_run = self.request.POST.get('is_test_run', 'false') == 'true'
             
-            # Find existing submission for this user and problem (unified submission approach)
+            # Find existing submission for this user and problem
             existing_submission = Submission.objects.filter(
                 user=self.request.profile,
                 problem=self.object
             ).order_by('-date').first()
             
-            # Update existing submission or create new one
+            # Determine if we should create a new submission or update existing
+            should_create_new = False
+            
             if existing_submission:
+                # If it's a test run AND the existing submission has contest_object
+                # (meaning it's a contest submission), create a new test submission
+                if is_test_run and existing_submission.contest_object is not None:
+                    should_create_new = True
+                # If it's an official submit, always update the existing submission
+                elif not is_test_run:
+                    should_create_new = False
+                # If it's a test run and no contest_object, update existing
+                else:
+                    should_create_new = False
+            else:
+                # No existing submission, create new one
+                should_create_new = True
+            
+            # Update existing submission or create new one
+            if not should_create_new and existing_submission:
                 # Update the existing submission
                 self.new_submission = existing_submission
                 self.new_submission.language = form.cleaned_data['language']
@@ -747,15 +765,14 @@ class ProblemSubmit(LoginRequiredMixin, ProblemMixin, TitleMixin, SingleObjectFo
                     source = SubmissionSource(submission=self.new_submission, source=form.cleaned_data['source'])
                     source.save()
                     self.new_submission.source = source
-                
-                self.new_submission.save()
             else:
                 # Create new submission
                 self.new_submission = form.save(commit=False)
                 source = None  # Will be created below
 
+            # Handle contest submission ONLY for official submissions (not test runs)
             contest_problem = self.contest_problem
-            if contest_problem is not None and not existing_submission:
+            if contest_problem is not None and not is_test_run:
                 # Use the contest object from current_contest.contest because we already use it
                 # in profile.update_contest().
                 self.new_submission.contest_object = self.request.profile.current_contest.contest
@@ -763,17 +780,20 @@ class ProblemSubmit(LoginRequiredMixin, ProblemMixin, TitleMixin, SingleObjectFo
                     self.new_submission.locked_after = self.new_submission.contest_object.locked_after
                 self.new_submission.save()
                 
-                # Check if ContestSubmission already exists
-                if not ContestSubmission.objects.filter(submission=self.new_submission, problem=contest_problem).exists():
-                    ContestSubmission(
-                        submission=self.new_submission,
-                        problem=contest_problem,
-                        participation=self.request.profile.current_contest,
-                    ).save()
-            elif not existing_submission:
+                # Check if ContestSubmission already exists, update or create
+                contest_submission, created = ContestSubmission.objects.get_or_create(
+                    submission=self.new_submission,
+                    problem=contest_problem,
+                    defaults={'participation': self.request.profile.current_contest}
+                )
+                if not created:
+                    # Update the participation if it already exists
+                    contest_submission.participation = self.request.profile.current_contest
+                    contest_submission.save()
+            else:
                 self.new_submission.save()
 
-            if not existing_submission:
+            if should_create_new:
                 source = SubmissionSource(submission=self.new_submission, source=form.cleaned_data['source'])
                 source.save()
 

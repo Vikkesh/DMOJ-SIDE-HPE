@@ -1,12 +1,7 @@
 <!-- Tab Switching Detection Module -->
-<!-- Include this file in your main proctoring template -->
 
 <script>
-/**
- * Tab Switching Detection Module
- * Handles intelligent detection of genuine tab switches vs iframe navigation
- * Tracks time spent outside the proctoring session
- */
+
 (function() {
     'use strict';
 
@@ -54,9 +49,7 @@
             onBackendUpdate: null
         },
 
-        /**
-         * Initialize the tab switch detector
-         */
+        
         initialize: function(callbacks) {
             console.log("[TAB-SWITCH] Initializing detector");
             
@@ -75,9 +68,7 @@
             console.log("[TAB-SWITCH] Detector initialized successfully");
         },
 
-        /**
-         * Setup all event listeners for tab switch detection
-         */
+        
         setupEventListeners: function() {
             // Keyboard-based tab switch detection (Alt+Tab, Cmd+Tab)
             document.addEventListener('keydown', this.handleKeyboardTabSwitch.bind(this));
@@ -92,9 +83,7 @@
             console.log("[TAB-SWITCH] Event listeners attached");
         },
 
-        /**
-         * Setup iframe-specific monitoring
-         */
+        
         setupIframeMonitoring: function(iframeElement) {
             if (!iframeElement) {
                 console.warn("[TAB-SWITCH] No iframe element provided for monitoring");
@@ -141,17 +130,13 @@
             });
         },
 
-        /**
-         * Track user activity on the page
-         */
+        
         trackUserActivity: function() {
             this.lastUserActivity = Date.now();
             this.userActiveInPage = true;
         },
 
-        /**
-         * Check if this is a genuine tab switch (not iframe navigation)
-         */
+        
         isGenuineTabSwitch: function() {
             // If there was recent iframe navigation, don't count as tab switch
             if (this.recentIframeNavigation) {
@@ -181,9 +166,7 @@
             return false;
         },
 
-        /**
-         * Increment tab switch count with cooldown protection
-         */
+        
         incrementTabSwitchCount: function(reason) {
             const now = Date.now();
             const timeSinceLastSwitch = now - this.lastFocusTime;
@@ -215,9 +198,7 @@
             }, this.config.cooldownMs);
         },
 
-        /**
-         * Start tracking time spent outside the session
-         */
+        
         startOutsideTimer: function() {
             if (this.timeOutsideInterval || this.outsideStartTime > 0) return;
             
@@ -251,9 +232,7 @@
             }
         },
 
-        /**
-         * Stop tracking time spent outside
-         */
+        
         stopOutsideTimer: function() {
             if (this.timeOutsideInterval) {
                 clearInterval(this.timeOutsideInterval);
@@ -278,9 +257,7 @@
             }
         },
 
-        /**
-         * Handle keyboard-based tab switching (Alt+Tab, Cmd+Tab)
-         */
+        
         handleKeyboardTabSwitch: function(event) {
             if ((event.altKey && event.key === 'Tab') || (event.metaKey && event.key === 'Tab')) {
                 console.log("[TAB-SWITCH] Keyboard tab switch detected");
@@ -292,9 +269,7 @@
             }
         },
 
-        /**
-         * Handle window blur event
-         */
+        
         handleWindowBlur: function() {
             const blurTimestamp = Date.now();
             this.lastBlurTime = blurTimestamp;
@@ -327,9 +302,7 @@
             }, this.config.cooldownMs);
         },
 
-        /**
-         * Handle window focus event
-         */
+        
         handleWindowFocus: function() {
             const focusTimestamp = Date.now();
             const blurDuration = this.lastBlurTime > 0 ? focusTimestamp - this.lastBlurTime : 0;
@@ -366,9 +339,7 @@
             this.hasCountedSinceBlur = false;
         },
 
-        /**
-         * Handle document visibility change
-         */
+        
         handleVisibilityChange: function() {
             const changeTimestamp = Date.now();
 
@@ -430,9 +401,7 @@
             }
         },
 
-        /**
-         * Update the tab switch count display in UI
-         */
+        
         updateTabSwitchDisplay: function() {
             const el = document.getElementById('tab-count');
             if (el) {
@@ -440,9 +409,7 @@
             }
         },
 
-        /**
-         * Update the time outside display in UI
-         */
+        
         setTimeOutsideDisplay: function(seconds) {
             const el = document.getElementById('time-outside');
             if (el) {
@@ -450,9 +417,7 @@
             }
         },
 
-        /**
-         * Get current statistics
-         */
+        
         getStats: function() {
             return {
                 tabSwitchCount: this.tabSwitchCount,
@@ -465,9 +430,7 @@
             };
         },
 
-        /**
-         * Reset all counters and timers
-         */
+        
         reset: function() {
             console.log("[TAB-SWITCH] Resetting all counters");
             
@@ -492,9 +455,7 @@
             this.setTimeOutsideDisplay(0);
         },
 
-        /**
-         * Send final update before cleanup
-         */
+        
         sendFinalUpdate: function() {
             console.log("[TAB-SWITCH] Sending final update");
             
@@ -507,9 +468,7 @@
             }
         },
 
-        /**
-         * Cleanup and remove event listeners
-         */
+        
         cleanup: function() {
             console.log("[TAB-SWITCH] Cleaning up detector");
             

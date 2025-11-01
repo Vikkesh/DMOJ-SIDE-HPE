@@ -558,7 +558,7 @@
                     </a>
                 {% endif %}
             {% endif %}
-            <h2 style="display: inline-block">{{ title }}</h2>
+            <h2 style="display: inline-block; margin-left: 15px;">{{ title }}</h2>
             {% if problem.is_organization_private %}
                 <span class="organization-tags">
                     {% for org in problem.organizations.all() %}
@@ -625,17 +625,6 @@
                 <p>{{ _('Loading editorial...') }}</p>
             </div>
         </div>
-        {% endif %}
-
-        <!-- Report Issue / Request Clarification Button -->
-        {% if request.user.is_authenticated and not request.profile.mute %}
-            <a href="{{ url('new_problem_ticket', problem.code) }}" class="button clarify" style="margin-bottom: 20px;">
-                {%- if contest_problem and contest_problem.contest.use_clarifications and request.profile.current_contest.live -%}
-                    {{ _('Request clarification') }}
-                {%- else -%}
-                    {{ _('Report an issue') }}
-                {%- endif -%}
-            </a>
         {% endif %}
     </div>
 
@@ -889,9 +878,11 @@
         toggleResultsPanel(true);
 
         // Run code via AJAX (updates existing submission)
+        // DO NOT update contest table for Run Code
         var formData = new FormData();
         formData.append('language', languageId);
         formData.append('source', code);
+        formData.append('is_test_run', 'true');  // Mark as test run, not official submission
 
         fetch('/problem/{{ problem.code }}/submit', {
             method: 'POST',
@@ -954,9 +945,11 @@
         toggleResultsPanel(true);
 
         // Submit via AJAX (updates existing submission)
+        // This WILL update contest table if in a contest
         var formData = new FormData();
         formData.append('language', languageId);
         formData.append('source', code);
+        formData.append('is_test_run', 'false');  // Mark as official submission
 
         fetch('/problem/{{ problem.code }}/submit', {
             method: 'POST',

@@ -1,8 +1,5 @@
 <script>
-  /**
-   * Enhanced Sliding Window Video Buffer Module
-   * Production-ready with race condition fixes, timeout handling, and periodic resets
-   */
+  
   (function () {
     "use strict";
 
@@ -18,15 +15,12 @@
     }
 
     function error(...args) {
-      console.error(...args); // Always log errors
+      console.error(...args);
     }
 
     log("[VIDEO-BUFFER] Module loaded");
 
-    /**
-     * Enhanced SlidingVideoBuffer Class
-     * Manages a sliding window of video chunks with improved safety
-     */
+    
     class SlidingVideoBuffer {
       constructor(maxDurationSeconds = 20, chunkIntervalMs = 1000) {
         this.maxDuration = maxDurationSeconds * 1000;
@@ -37,7 +31,7 @@
         this._restarting = false;
         this._cleanupInterval = null;
         this._lastCodec = null;
-        this._uploadTriggered = false; // NEW FLAG
+        this._uploadTriggered = false; 
 
         // Periodic recorder reset to prevent memory leaks
         this._resetInterval = null;
@@ -160,7 +154,7 @@
             return;
           }
 
-          // ✅ Only upload if triggered by violation, not by periodic reset
+          // Only upload if triggered by violation, not by periodic reset
           if (this._uploadTriggered && this._currentCallback) {
             this._uploadTriggered = false; // Reset flag
             const videoBlob = this.createVideoBlob();
@@ -212,14 +206,11 @@
 
         this.mediaRecorder.onerror = (event) => {
           error("[VIDEO-BUFFER] MediaRecorder error:", event.error);
-          // Try to recover by recreating recorder
           this._handleRecorderError();
         };
       }
 
-      /**
-       * Setup periodic MediaRecorder reset (every 30 minutes)
-       */
+      
       _setupPeriodicReset() {
         // Clear existing timer
         if (this._resetInterval) {
@@ -264,7 +255,7 @@
           // Wait for stop to complete
           await new Promise((resolve) => setTimeout(resolve, 500));
 
-          // ✅ CRITICAL: Keep buffer intact - violations may have occurred
+          
           log(`[VIDEO-BUFFER] Buffer preserved: ${this.chunks.length} chunks retained`);
           
           log("[VIDEO-BUFFER] Recreating MediaRecorder instance...");
@@ -288,16 +279,14 @@
         }
       }
 
-      /**
-       * Handle MediaRecorder errors with recovery
-       */
+      
       async _handleRecorderError() {
         error("[VIDEO-BUFFER] Attempting error recovery...");
 
         await new Promise((resolve) => setTimeout(resolve, 1000));
 
         try {
-          // ✅ CRITICAL: Preserve buffer during error recovery
+          
           log(`[VIDEO-BUFFER] Preserving buffer during recovery: ${this.chunks.length} chunks`);
           
           log("[VIDEO-BUFFER] Recreating recorder after error...");
@@ -309,7 +298,7 @@
           }
         } catch (err) {
           error("[VIDEO-BUFFER] ❌ Error recovery failed:", err);
-          // Last resort: clear everything and start fresh
+         
           log("[VIDEO-BUFFER] ⚠️ Fatal error - clearing buffer");
           this.clearBuffer();
         }
@@ -375,7 +364,7 @@
         }
 
         if (removedCount > 0) {
-          // log(`[VIDEO-BUFFER] Removed ${removedCount} old chunks from buffer`);
+          log(`[VIDEO-BUFFER] Removed ${removedCount} old chunks from buffer`);
         }
 
         const maxChunks = Math.ceil(this.maxDuration / this.chunkInterval) + 2;
@@ -497,7 +486,7 @@
           return false;
         }
 
-        this._uploadTriggered = true; // ✅ Set flag
+        this._uploadTriggered = true; 
         log("[VIDEO-BUFFER] Triggering violation upload - stopping recorder");
         this.mediaRecorder.stop();
         return true;
@@ -571,16 +560,13 @@
 
     window.SlidingVideoBuffer = SlidingVideoBuffer;
 
-    /**
-     * Enhanced Proctoring Video Manager
-     * Production-ready with timeout handling and retry logic
-     */
+
     class ProctoringVideoManager {
       constructor(videoElement, statusElement, config = {}) {
         this.video = videoElement;
         this.status = statusElement;
 
-        // Use config object instead of hardcoded URL
+        
         this.apiBaseUrl =
           config.apiBaseUrl ||
           document.querySelector('meta[name="proctoring-api"]')?.content ||
@@ -620,9 +606,7 @@
         log("[VIDEO-MANAGER] Video buffer system initialized");
       }
 
-      /**
-       * Enhanced upload with timeout, retries, and better error handling
-       */
+      
       async handleViolationUpload(videoBlob) {
         // Prevent concurrent uploads
         if (this.isUploading) {
@@ -653,7 +637,7 @@
 
             this.isUploading = false;
             this._scheduleStatusReset();
-            return; // <<< NOTE: This exits the function on success
+            return; 
           } catch (err) {
             lastError = err;
             error(`[VIDEO-MANAGER] Upload attempt ${attempt} failed:`, err);
@@ -674,18 +658,16 @@
             "Failed to upload evidence - continuing monitoring";
         }
 
-        // ***************************************************************
-        // *** TODO: This is where you would add the IndexedDB logic ***
+        
+        // TODO:  add the IndexedDB 
         // saveToOfflineQueue(videoBlob, this.userData);
-        // ***************************************************************
+       
 
         this.isUploading = false;
         this._scheduleStatusReset();
       }
 
-      /**
-       * Upload with timeout using AbortController
-       */
+      
       async _uploadWithTimeout(videoBlob) {
         const formData = new FormData();
         formData.append("file", videoBlob, `violation_${Date.now()}.webm`);
@@ -774,9 +756,7 @@
         };
       }
 
-      /**
-       * Cancel ongoing upload
-       */
+      
       cancelUpload() {
         if (this._uploadAbortController) {
           log("[VIDEO-MANAGER] Cancelling ongoing upload");
