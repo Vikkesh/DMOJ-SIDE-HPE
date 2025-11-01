@@ -70,7 +70,7 @@
         }
         
         #problem-description-panel .problem-title {
-            padding: 20px 20px 10px 20px;
+            padding: -10px 20px 10px 20px;
             border-bottom: 2px solid #e0e0e0;
             margin-bottom: 0;
         }
@@ -99,36 +99,76 @@
             position: relative;
         }
 
-        /* Editor Header - Language selector and actions */
+        /* Editor Header - Language selector only */
         #editor-header {
-            padding: 15px 20px;
-            background: #fff;
-            border-bottom: 1px solid #e0e0e0;
+            padding: 5px 10px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
             display: flex;
-            justify-content: space-between;
+            justify-content: flex-start;
             align-items: center;
             flex-shrink: 0;
         }
 
         #editor-header select {
-            padding: 8px 12px;
+            padding: 4px 8px;
             border: 1px solid #ccc;
-            border-radius: 4px;
-            font-size: 14px;
+            border-radius: 3px;
+            font-size: 12px;
         }
-
-        #editor-header button {
-            padding: 8px 20px;
-            background: #5cb85c;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
+        
+        #editor-header label {
+            font-size: 12px;
+            margin-right: 6px;
             font-weight: 500;
         }
 
-        #editor-header button:hover {
+        /* Editor Footer - Submit buttons at bottom */
+        #editor-footer {
+            padding: 8px 10px;
+            background: #f8f9fa;
+            border-top: 1px solid #dee2e6;
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        #editor-footer button {
+            padding: 6px 16px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: background 0.2s ease;
+        }
+
+        #reset-code-btn {
+            background: #6c757d;
+            color: white;
+        }
+
+        #reset-code-btn:hover {
+            background: #5a6268;
+        }
+
+        #run-code-btn {
+            background: #007bff;
+            color: white;
+        }
+
+        #run-code-btn:hover {
+            background: #0056b3;
+        }
+
+        #submit-code-btn {
+            background: #5cb85c;
+            color: white;
+        }
+
+        #submit-code-btn:hover {
             background: #4cae4c;
         }
 
@@ -183,7 +223,7 @@
         }
 
         #results-panel-header {
-            padding: 10px 20px;
+            padding: 6px 12px;
             background: #f8f9fa;
             border-bottom: 1px solid #e0e0e0;
             display: flex;
@@ -191,9 +231,26 @@
             align-items: center;
             flex-shrink: 0;
         }
+        
+        #results-panel-header h3 {
+            margin: 0;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        
+        #results-panel-header button {
+            padding: 3px 10px;
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 500;
+        }
 
         #results-panel-content {
-            padding: 20px;
+            padding: 15px;
             flex: 1;
             overflow-y: auto;
         }
@@ -237,44 +294,123 @@
 
         /* Submission Status Styles */
         .submission-status {
-            padding: 15px;
-            margin-bottom: 10px;
-            border-radius: 4px;
+            padding: 16px;
+            margin-bottom: 12px;
+            border-radius: 6px;
             background: #f8f9fa;
+            border-left: 4px solid #6c757d;
+        }
+        
+        .submission-status h4 {
+            margin: 0 0 8px 0;
+            font-size: 15px;
+            font-weight: 600;
+        }
+        
+        .submission-status p {
+            margin: 0;
+            font-size: 13px;
+            color: #495057;
         }
 
         .status-pending {
-            background: #fff3cd;
-            border-left: 4px solid #ffc107;
+            background: #fff8e1;
+            border-left-color: #ffa726;
+        }
+        
+        .status-pending h4 {
+            color: #e65100;
         }
 
-        .status-accepted {
-            background: #d4edda;
-            border-left: 4px solid #28a745;
+        .status-accepted,
+        .status-completed {
+            background: #e8f5e9;
+            border-left-color: #4caf50;
+        }
+        
+        .status-accepted h4,
+        .status-completed h4 {
+            color: #2e7d32;
         }
 
-        .status-wrong {
-            background: #f8d7da;
-            border-left: 4px solid #dc3545;
+        .status-wrong,
+        .status-failed,
+        .status-error {
+            background: #ffebee;
+            border-left-color: #f44336;
+        }
+        
+        .status-wrong h4,
+        .status-failed h4,
+        .status-error h4 {
+            color: #c62828;
+        }
+        
+        .status-partial {
+            background: #fff3e0;
+            border-left-color: #ff9800;
+        }
+        
+        .status-partial h4 {
+            color: #ef6c00;
         }
 
         /* Test Cases */
         .test-case {
+            padding: 12px;
+            margin-bottom: 10px;
+            background: #ffffff;
+            border-radius: 4px;
+            border-left: 4px solid #ccc;
+            font-size: 13px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .test-case strong {
+            font-weight: 600;
+            display: inline-block;
+            min-width: 80px;
+        }
+
+        .test-case.passed,
+        .test-case.AC {
+            border-left-color: #4caf50;
+            background: #f1f8f4;
+        }
+        
+        .test-case.passed strong,
+        .test-case.AC strong {
+            color: #2e7d32;
+        }
+
+        .test-case.failed,
+        .test-case.WA,
+        .test-case.TLE,
+        .test-case.MLE,
+        .test-case.RTE {
+            border-left-color: #f44336;
+            background: #fef5f5;
+        }
+        
+        .test-case.failed strong,
+        .test-case.WA strong,
+        .test-case.TLE strong,
+        .test-case.MLE strong,
+        .test-case.RTE strong {
+            color: #c62828;
+        }
+        
+        /* Test Cases Summary */
+        .test-cases-summary {
+            margin: 12px 0;
             padding: 10px;
-            margin-bottom: 8px;
             background: #f8f9fa;
             border-radius: 4px;
-            border-left: 3px solid #ccc;
+            font-size: 13px;
         }
-
-        .test-case.passed {
-            border-left-color: #28a745;
-            background: #d4edda;
-        }
-
-        .test-case.failed {
-            border-left-color: #dc3545;
-            background: #f8d7da;
+        
+        .test-cases-summary strong {
+            font-weight: 600;
         }
 
         /* Resize Handle */
@@ -505,10 +641,10 @@
 
     <!-- Right Panel - Code Editor -->
     <div id="code-editor-panel">
-        <!-- Editor Header -->
+        <!-- Editor Header - Language selector only -->
         <div id="editor-header">
             <div>
-                <label for="language-select" style="margin-right: 10px; font-weight: 500;">Language:</label>
+                <label for="language-select" style="font-weight: 500;">Language:</label>
                 <select id="language-select" name="language">
                     {% for lang in problem.usable_languages.all() %}
                         <option value="{{ lang.id }}" data-ace-mode="{{ lang.ace }}"
@@ -518,19 +654,24 @@
                     {% endfor %}
                 </select>
             </div>
-            <div>
-                <button type="button" id="reset-code-btn" style="background: #6c757d; margin-right: 10px;">
-                    Reset Code
-                </button>
-                <button type="submit" id="submit-code-btn">
-                    Submit Solution
-                </button>
-            </div>
         </div>
 
         <!-- Code Editor -->
         <div id="code-editor-area">
             <div id="ace-editor"></div>
+        </div>
+
+        <!-- Editor Footer - Submit buttons at bottom -->
+        <div id="editor-footer">
+            <button type="button" id="reset-code-btn">
+                Reset Code
+            </button>
+            <button type="button" id="run-code-btn">
+                Run Code
+            </button>
+            <button type="submit" id="submit-code-btn">
+                Submit Solution
+            </button>
         </div>
 
         <!-- Vertical Resize Handle -->
@@ -539,8 +680,8 @@
         <!-- Bottom Panel - Test Results -->
         <div id="results-panel" class="hidden">
             <div id="results-panel-header">
-                <h3 style="margin: 0; font-size: 16px;">Submission Results</h3>
-                <button type="button" onclick="toggleResultsPanel()" style="padding: 4px 12px; background: #dc3545;">
+                <h3>Submission Results</h3>
+                <button type="button" onclick="toggleResultsPanel()">
                     Close
                 </button>
             </div>
@@ -558,7 +699,7 @@
     editor.setTheme("ace/theme/{{ request.profile.resolved_ace_theme }}");
     editor.session.setMode("ace/mode/{{ default_lang.ace }}");
     editor.setOptions({
-        fontSize: "14px",
+        fontSize: "13px",
         showPrintMargin: false,
         highlightActiveLine: true,
         enableBasicAutocompletion: true,
@@ -572,6 +713,17 @@
 
     // Block copy/paste operations on the page, but allow in code editor
     (function() {
+        // Check if copy/paste blocking is disabled via debug settings
+        // To disable: Set DISABLE_COPY_PASTE_BLOCKING = True in judge/debug.py
+        var copyPasteBlockingDisabled = {{ DISABLE_COPY_PASTE_BLOCKING|lower if DISABLE_COPY_PASTE_BLOCKING is defined else 'false' }};
+        
+        if (copyPasteBlockingDisabled) {
+            console.log('Copy/paste blocking is DISABLED (debug mode)');
+            return; // Exit early - no blocking applied
+        }
+        
+        console.log('Copy/paste blocking is ENABLED');
+        
         var editorContainer = document.getElementById('ace-editor');
         var editorClipboardCache = null; // Store what was copied from editor
         
@@ -721,22 +873,22 @@
             .catch(error => console.error('Error loading template:', error));
     });
 
-    // Submit Code Handler
-    document.getElementById('submit-code-btn').addEventListener('click', function() {
+    // Run Code Handler (updates the same submission entry)
+    document.getElementById('run-code-btn').addEventListener('click', function() {
         var code = editor.getValue();
         var languageId = document.getElementById('language-select').value;
         
         if (!code.trim()) {
-            alert('Please write some code before submitting!');
+            alert('Please write some code before running!');
             return;
         }
 
         // Show loading in results panel
         document.getElementById('results-panel-content').innerHTML = 
-            '<div style="text-align: center; padding: 40px;"><div class="loading-spinner"></div><p>Submitting your code...</p></div>';
+            '<div style="text-align: center; padding: 40px;"><div class="loading-spinner"></div><p>Running your code...</p></div>';
         toggleResultsPanel(true);
 
-        // Submit via AJAX
+        // Run code via AJAX (updates existing submission)
         var formData = new FormData();
         formData.append('language', languageId);
         formData.append('source', code);
@@ -751,12 +903,89 @@
             credentials: 'same-origin'
         })
         .then(response => {
-            if (!response.ok && response.status === 429) {
+            if (!response.ok) {
+                if (response.status === 429) {
+                    throw new Error('You ran code too many times. Please wait a moment.');
+                }
+                throw new Error('Server returned error: ' + response.status);
+            }
+            
+            // Check if response is JSON
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                return response.json();
+            } else {
+                // Server returned HTML or other non-JSON content
                 return response.text().then(text => {
-                    throw new Error('You submitted too many submissions.');
+                    console.error('Non-JSON response:', text);
+                    throw new Error('Server returned an invalid response. Please check if you are logged in.');
                 });
             }
-            return response.json();
+        })
+        .then(data => {
+            if (data.submission) {
+                // Poll for test run status
+                pollSubmissionStatus(data.submission);
+            } else if (data.error) {
+                showError(data.error);
+            } else {
+                showError('Test run failed');
+            }
+        })
+        .catch(error => {
+            console.error('Run code error:', error);
+            showError('Error: ' + error.message);
+        });
+    });
+
+    // Submit Code Handler (updates the same submission entry)
+    document.getElementById('submit-code-btn').addEventListener('click', function() {
+        var code = editor.getValue();
+        var languageId = document.getElementById('language-select').value;
+        
+        if (!code.trim()) {
+            alert('Please write some code before submitting!');
+            return;
+        }
+
+        // Show loading in results panel
+        document.getElementById('results-panel-content').innerHTML = 
+            '<div style="text-align: center; padding: 40px;"><div class="loading-spinner"></div><p>Submitting your code...</p></div>';
+        toggleResultsPanel(true);
+
+        // Submit via AJAX (updates existing submission)
+        var formData = new FormData();
+        formData.append('language', languageId);
+        formData.append('source', code);
+
+        fetch('/problem/{{ problem.code }}/submit', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': csrftoken
+            },
+            credentials: 'same-origin'
+        })
+        .then(response => {
+            if (!response.ok) {
+                if (response.status === 429) {
+                    throw new Error('You submitted too many submissions.');
+                }
+                throw new Error('Server returned error: ' + response.status);
+            }
+            
+            // Check if response is JSON
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                return response.json();
+            } else {
+                // Server returned HTML or other non-JSON content
+                return response.text().then(text => {
+                    console.error('Non-JSON response:', text);
+                    throw new Error('Server returned an invalid response. Please check if you are logged in.');
+                });
+            }
         })
         .then(data => {
             if (data.submission) {
@@ -769,6 +998,7 @@
             }
         })
         .catch(error => {
+            console.error('Submit code error:', error);
             showError('Error: ' + error.message);
         });
     });
@@ -850,18 +1080,86 @@
 
     // Update Submission Results Display
     function updateSubmissionResults(data) {
-        var html = '<div class="submission-status ' + 
-                   (data.status === 'AC' ? 'status-accepted' : 
-                    data.is_graded ? 'status-wrong' : 'status-pending') + '">';
+        // Determine status class based on result
+        var statusClass = 'status-pending';
+        var isSuccess = false;
+        var displayStatus = data.status_display || data.status || 'Processing';
         
-        html += '<h4>' + data.status_display + '</h4>';
+        if (data.is_graded) {
+            // First, check test cases to determine actual success
+            if (data.test_cases && data.test_cases.length > 0) {
+                var allPassed = data.test_cases.every(function(tc) {
+                    return tc.status === 'AC';
+                });
+                
+                var somePassed = data.test_cases.some(function(tc) {
+                    return tc.status === 'AC';
+                });
+                
+                if (allPassed) {
+                    isSuccess = true;
+                    displayStatus = 'Accepted';
+                } else if (somePassed) {
+                    statusClass = 'status-partial';
+                    displayStatus = 'Partial';
+                } else {
+                    isSuccess = false;
+                    // Check what kind of error
+                    var firstError = data.test_cases[0].status;
+                    if (firstError === 'WA') {
+                        displayStatus = 'Wrong Answer';
+                    } else if (firstError === 'TLE') {
+                        displayStatus = 'Time Limit Exceeded';
+                    } else if (firstError === 'MLE') {
+                        displayStatus = 'Memory Limit Exceeded';
+                    } else if (firstError === 'RTE') {
+                        displayStatus = 'Runtime Error';
+                    } else {
+                        displayStatus = firstError || 'Wrong Answer';
+                    }
+                }
+            } else {
+                // No test case details, rely on status code
+                if (data.status === 'AC') {
+                    isSuccess = true;
+                    displayStatus = 'Accepted';
+                }
+            }
+            
+            // Check for partial success based on points
+            if (data.points !== undefined && data.total_points !== undefined) {
+                if (data.points === data.total_points && data.total_points > 0) {
+                    isSuccess = true;
+                    displayStatus = 'Accepted';
+                } else if (data.points > 0) {
+                    statusClass = 'status-partial';
+                    displayStatus = 'Partial (' + data.points + '/' + data.total_points + ')';
+                } else {
+                    isSuccess = false;
+                }
+            }
+            
+            // Set final status class
+            if (isSuccess) {
+                statusClass = 'status-completed';
+            } else if (statusClass !== 'status-partial') {
+                statusClass = 'status-wrong';
+            }
+        }
+        
+        var html = '<div class="submission-status ' + statusClass + '">';
+        
+        html += '<h4>' + displayStatus + '</h4>';
         html += '<p>Time: ' + (data.time || '---') + ' | Memory: ' + (data.memory || '---') + '</p>';
         
         if (data.test_cases && data.test_cases.length > 0) {
-            html += '<div style="margin-top: 15px;"><strong>Test Cases:</strong></div>';
+            html += '<div class="test-cases-summary"><strong>Test Cases:</strong></div>';
             data.test_cases.forEach(function(tc, index) {
-                html += '<div class="test-case ' + (tc.status === 'AC' ? 'passed' : 'failed') + '">';
-                html += '<strong>Test ' + (index + 1) + ':</strong> ' + tc.status;
+                var testStatus = tc.status || 'Unknown';
+                var testClass = (testStatus === 'AC') ? 'AC passed' : testStatus + ' failed';
+                
+                html += '<div class="test-case ' + testClass + '">';
+                html += '<strong>Test ' + (index + 1) + ':</strong> ' + testStatus;
                 if (tc.time) html += ' | Time: ' + tc.time;
                 if (tc.memory) html += ' | Memory: ' + tc.memory;
                 html += '</div>';

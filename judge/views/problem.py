@@ -713,26 +713,69 @@ class ProblemSubmit(LoginRequiredMixin, ProblemMixin, TitleMixin, SingleObjectFo
                                    _('You have exceeded the submission limit for this problem.'))
 
         with transaction.atomic():
-            self.new_submission = form.save(commit=False)
+            # Check if this is a test run (from Run Code button)
+            is_test_mode = self.request.POST.get('test_mode') == 'true'
+            
+            # Find existing submission for this user and problem (unified submission approach)
+            existing_submission = Submission.objects.filter(
+                user=self.request.profile,
+                problem=self.object
+            ).order_by('-date').first()
+            
+            # Update existing submission or create new one
+            if existing_submission:
+                # Update the existing submission
+                self.new_submission = existing_submission
+                self.new_submission.language = form.cleaned_data['language']
+                self.new_submission.date = timezone.now()
+                self.new_submission.time = None
+                self.new_submission.memory = None
+                self.new_submission.points = None
+                self.new_submission.result = None
+                self.new_submission.error = None
+                self.new_submission.status = 'QU'  # Queued
+                self.new_submission.judged_date = None
+                self.new_submission.was_rejudged = False
+                self.new_submission.is_pretested = False
+                
+                # Update the source code
+                if hasattr(self.new_submission, 'source') and self.new_submission.source:
+                    self.new_submission.source.source = form.cleaned_data['source']
+                    self.new_submission.source.save()
+                    source = self.new_submission.source
+                else:
+                    source = SubmissionSource(submission=self.new_submission, source=form.cleaned_data['source'])
+                    source.save()
+                    self.new_submission.source = source
+                
+                self.new_submission.save()
+            else:
+                # Create new submission
+                self.new_submission = form.save(commit=False)
+                source = None  # Will be created below
 
             contest_problem = self.contest_problem
-            if contest_problem is not None:
+            if contest_problem is not None and not existing_submission:
                 # Use the contest object from current_contest.contest because we already use it
                 # in profile.update_contest().
                 self.new_submission.contest_object = self.request.profile.current_contest.contest
                 if self.request.profile.current_contest.live:
                     self.new_submission.locked_after = self.new_submission.contest_object.locked_after
                 self.new_submission.save()
-                ContestSubmission(
-                    submission=self.new_submission,
-                    problem=contest_problem,
-                    participation=self.request.profile.current_contest,
-                ).save()
-            else:
+                
+                # Check if ContestSubmission already exists
+                if not ContestSubmission.objects.filter(submission=self.new_submission, problem=contest_problem).exists():
+                    ContestSubmission(
+                        submission=self.new_submission,
+                        problem=contest_problem,
+                        participation=self.request.profile.current_contest,
+                    ).save()
+            elif not existing_submission:
                 self.new_submission.save()
 
-            source = SubmissionSource(submission=self.new_submission, source=form.cleaned_data['source'])
-            source.save()
+            if not existing_submission:
+                source = SubmissionSource(submission=self.new_submission, source=form.cleaned_data['source'])
+                source.save()
 
         # Save a query.
         self.new_submission.source = source
@@ -854,6 +897,10 @@ class ProblemUnified(ProblemDetail):
         
         # Add ACE editor URL
         context['ACE_URL'] = settings.ACE_URL if hasattr(settings, 'ACE_URL') else '/static/ace'
+        
+        # Add debug setting for copy/paste blocking
+        from judge.debug import get_disable_copy_paste_blocking
+        context['DISABLE_COPY_PASTE_BLOCKING'] = get_disable_copy_paste_blocking()
         
         return context
 
