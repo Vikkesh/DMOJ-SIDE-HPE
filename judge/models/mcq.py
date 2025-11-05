@@ -2,7 +2,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, RegexValidator
 from django.db import models
-from django.db.models import CASCADE, SET_NULL
+from django.db.models import CASCADE, SET_NULL, Max
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
@@ -83,13 +83,16 @@ class MCQQuestion(models.Model):
     types = models.ManyToManyField(
         ProblemType,
         verbose_name=_('question types'),
-        help_text=_("The type of question, similar to problem types")
+        help_text=_("The type of question, similar to problem types"),
+        blank=True
     )
     group = models.ForeignKey(
         ProblemGroup,
         verbose_name=_('question group'),
         on_delete=CASCADE,
-        help_text=_('The group/category of question')
+        help_text=_('The group/category of question'),
+        null=True,
+        blank=True
     )
     
     # Access control
@@ -152,7 +155,8 @@ class MCQQuestion(models.Model):
     # Options display
     randomize_options = models.BooleanField(
         verbose_name=_('randomize option order'),
-        default=False,
+        default=True,
+        editable=False,
         help_text=_('Randomize the order of options for each user')
     )
     
@@ -226,6 +230,16 @@ class MCQOption(models.Model):
 
     def __str__(self):
         return f"{self.question.code} - Option {self.order + 1}"
+
+    def save(self, *args, **kwargs):
+        if self.pk is None:
+            # Auto-assign sequential order whenever new options are added and the requested slot is taken
+            if MCQOption.objects.filter(question=self.question, order=self.order).exists():
+                max_order = MCQOption.objects.filter(question=self.question).aggregate(
+                    max_order=Max('order')
+                )['max_order']
+                self.order = (max_order or -1) + 1
+        super().save(*args, **kwargs)
 
     class Meta:
         verbose_name = _('MCQ option')

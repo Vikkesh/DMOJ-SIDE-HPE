@@ -25,6 +25,7 @@ class MCQQuestionForm(ModelForm):
         })
 
     class Meta:
+        exclude = ('randomize_options',)
         widgets = {
             'authors': AdminHeavySelect2MultipleWidget(data_view='profile_select2'),
             'curators': AdminHeavySelect2MultipleWidget(data_view='profile_select2'),
@@ -39,7 +40,7 @@ class MCQQuestionForm(ModelForm):
 class MCQOptionInlineForm(ModelForm):
     class Meta:
         model = MCQOption
-        fields = ('option_text', 'is_correct', 'order')
+        fields = ('option_text', 'is_correct')
         widgets = {
             'option_text': forms.Textarea(attrs={'rows': 3, 'cols': 80}),
         }
@@ -48,7 +49,7 @@ class MCQOptionInlineForm(ModelForm):
 class MCQOptionInline(admin.TabularInline):
     model = MCQOption
     form = MCQOptionInlineForm
-    fields = ('option_text', 'is_correct', 'order')
+    fields = ('option_text', 'is_correct')
     extra = 4
     min_num = 2
     max_num = 10
@@ -87,7 +88,7 @@ class MCQQuestionAdmin(NoBatchDeleteMixin, VersionAdmin):
             ),
         }),
         (_('Settings'), {
-            'fields': ('points', 'partial_credit', 'randomize_options', 'explanation', 'license'),
+            'fields': ('points', 'partial_credit', 'explanation', 'license'),
         }),
         (_('Taxonomy'), {'fields': ('types', 'group')}),
         (_('History'), {'fields': ('change_message',)}),
@@ -171,6 +172,7 @@ class MCQQuestionAdmin(NoBatchDeleteMixin, VersionAdmin):
         # Handle organization privacy
         if form.changed_data and 'organizations' in form.changed_data:
             obj.is_organization_private = bool(form.cleaned_data['organizations'])
+        obj.randomize_options = True
         
         super(MCQQuestionAdmin, self).save_model(request, obj, form, change)
 
@@ -199,6 +201,21 @@ class MCQQuestionAdmin(NoBatchDeleteMixin, VersionAdmin):
                     from django.contrib import messages
                     messages.error(request, _('Multiple choice questions must have at least one correct answer.'))
                     return
+
+            # Ensure options have unique sequential order values even though the field is hidden
+            existing_orders = MCQOption.objects.filter(question=form.instance).exclude(
+                pk__in=[instance.pk for instance in instances if instance.pk]
+            ).values_list('order', flat=True)
+            used_orders = set(existing_orders)
+            next_order = 0
+
+            for instance in instances:
+                if instance.order is None or instance.order in used_orders or instance.pk is None:
+                    while next_order in used_orders:
+                        next_order += 1
+                    instance.order = next_order
+                    used_orders.add(next_order)
+                    next_order += 1
             
             for instance in instances:
                 instance.save()

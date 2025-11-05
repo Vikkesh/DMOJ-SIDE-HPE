@@ -1,4 +1,5 @@
 import logging
+import random
 from django.conf import settings
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
@@ -231,12 +232,20 @@ class MCQDetail(MCQMixin, SolvedMCQMixin, TitleMixin, DetailView):
             context['user_submission'] = None
             context['selected_option_ids'] = []
         
-        # Get options (randomize if needed)
-        options = list(self.object.options.all().order_by('order'))
-        if self.object.randomize_options and user.is_authenticated and context['user_submission'] is None:
-            import random
-            random.seed(user.id + self.object.id)  # Consistent randomization per user
-            random.shuffle(options)
+        # Get options and always present them in a user-specific random order
+        options = list(self.object.options.all().order_by('order', 'id'))
+        seed_parts = [f"question:{self.object.pk}"]
+        if user.is_authenticated:
+            seed_parts.append(f"user:{user.pk}")
+        else:
+            session_key = self.request.session.session_key
+            if session_key is None:
+                self.request.session.setdefault('mcq_seed_initialized', True)
+                self.request.session.save()
+                session_key = self.request.session.session_key
+            seed_parts.append(f"session:{session_key}")
+        shuffler = random.Random('|'.join(seed_parts))
+        shuffler.shuffle(options)
         context['options'] = options
         
         return context
