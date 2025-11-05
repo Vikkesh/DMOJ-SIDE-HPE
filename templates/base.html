@@ -206,6 +206,13 @@
                         {% if children %}<ul>{{ loop(children) }}</ul>{% endif %}
                     {% endwith %}
                 </li>
+                {% if node.key == 'problems' and node.level == 0 %}
+                    <li>
+                        <a href="{{ url('mcq_list') }}" class="nav-mcq{% if '/mcq/' in request.path %} active{% endif %}">
+                            {{ _('MCQ Problems') }}
+                        </a>
+                    </li>
+                {% endif %}
             {% endfor %}
         </ul>
 
