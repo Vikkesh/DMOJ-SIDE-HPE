@@ -263,7 +263,12 @@
                     <strong>{{ _('Points:') }}</strong> {{ mcq.points }}
                 </div>
                 <div class="mcq-meta-item">
-                    <strong>{{ _('Category:') }}</strong> {{ mcq.group.full_name }}
+                    <strong>{{ _('Category:') }}</strong>
+                    {% if mcq.group %}
+                        {{ mcq.group.full_name }}
+                    {% else %}
+                        {{ _('Uncategorized') }}
+                    {% endif %}
                 </div>
             </div>
         </div>

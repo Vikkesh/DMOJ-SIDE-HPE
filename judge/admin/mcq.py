@@ -1,5 +1,6 @@
 from django import forms
 from django.contrib import admin
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.forms import ModelForm
 from django.urls import reverse_lazy
@@ -8,6 +9,7 @@ from django.utils.translation import gettext, gettext_lazy as _, ngettext
 from reversion.admin import VersionAdmin
 
 from judge.models import MCQQuestion, MCQOption, MCQSubmission, Profile
+from judge.models.problem import ProblemGroup
 from judge.utils.views import NoBatchDeleteMixin
 from judge.widgets import AdminHeavySelect2MultipleWidget, AdminMartorWidget, AdminSelect2MultipleWidget, \
     AdminSelect2Widget
@@ -53,17 +55,53 @@ class MCQOptionInline(admin.TabularInline):
     extra = 4
     min_num = 2
     max_num = 10
+    validate_min = True
 
     def get_formset(self, request, obj=None, **kwargs):
-        formset = super().get_formset(request, obj, **kwargs)
+        formset_class = super().get_formset(request, obj, **kwargs)
         
         # Customize based on question type
         if obj and obj.question_type == 'TRUE_FALSE':
-            formset.max_num = 2
-            formset.extra = 2
-            formset.min_num = 2
+            formset_class.max_num = 2
+            formset_class.extra = 2
+            formset_class.min_num = 2
         
-        return formset
+        # Add custom validation to the formset
+        original_clean = formset_class.clean
+        
+        def clean_with_validation(formset_self):
+            if original_clean:
+                original_clean(formset_self)
+            
+            if not obj:
+                return
+                
+            # Count correct answers from the formset
+            correct_count = 0
+            for form in formset_self.forms:
+                if form.cleaned_data and not form.cleaned_data.get('DELETE', False):
+                    if form.cleaned_data.get('is_correct', False):
+                        correct_count += 1
+            
+            # Validate based on question type
+            if obj.question_type == 'SINGLE' or obj.question_type == 'TRUE_FALSE':
+                if correct_count > 1:
+                    raise ValidationError(
+                        _('Single choice and True/False questions can only have ONE correct answer. You have marked %(count)d options as correct.'),
+                        params={'count': correct_count}
+                    )
+                elif correct_count == 0:
+                    raise ValidationError(
+                        _('Single choice and True/False questions must have exactly one correct answer.')
+                    )
+            elif obj.question_type == 'MULTIPLE':
+                if correct_count < 1:
+                    raise ValidationError(
+                        _('Multiple choice questions must have at least one correct answer.')
+                    )
+        
+        formset_class.clean = clean_with_validation
+        return formset_class
 
 
 class MCQCreatorListFilter(admin.SimpleListFilter):
@@ -173,34 +211,18 @@ class MCQQuestionAdmin(NoBatchDeleteMixin, VersionAdmin):
         if form.changed_data and 'organizations' in form.changed_data:
             obj.is_organization_private = bool(form.cleaned_data['organizations'])
         obj.randomize_options = True
+        if obj.group is None:
+            obj.group, _created = ProblemGroup.objects.get_or_create(
+                name='uncategorized',
+                defaults={'full_name': _('Uncategorized')}
+            )
         
         super(MCQQuestionAdmin, self).save_model(request, obj, form, change)
 
     def save_formset(self, request, form, formset, change):
-        """Validate MCQ options before saving"""
+        """Save MCQ options with auto-assigned order values"""
         if formset.model == MCQOption:
             instances = formset.save(commit=False)
-            
-            # Count correct answers
-            correct_count = sum(1 for instance in instances if instance.is_correct)
-            existing_correct = MCQOption.objects.filter(
-                question=form.instance,
-                is_correct=True
-            ).exclude(pk__in=[i.pk for i in instances if i.pk]).count()
-            
-            total_correct = correct_count + existing_correct
-            
-            # Validate based on question type
-            if form.instance.question_type == 'SINGLE' or form.instance.question_type == 'TRUE_FALSE':
-                if total_correct != 1:
-                    from django.contrib import messages
-                    messages.error(request, _('Single choice and True/False questions must have exactly one correct answer.'))
-                    return
-            elif form.instance.question_type == 'MULTIPLE':
-                if total_correct < 1:
-                    from django.contrib import messages
-                    messages.error(request, _('Multiple choice questions must have at least one correct answer.'))
-                    return
 
             # Ensure options have unique sequential order values even though the field is hidden
             existing_orders = MCQOption.objects.filter(question=form.instance).exclude(

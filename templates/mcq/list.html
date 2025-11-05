@@ -191,7 +191,13 @@
                                 <span class="badge badge-danger">{{ _('Hard') }}</span>
                             {% endif %}
                         </td>
-                        <td class="category">{{ mcq.group.full_name }}</td>
+                        <td class="category">
+                            {% if mcq.group %}
+                                {{ mcq.group.full_name }}
+                            {% else %}
+                                {{ _('Uncategorized') }}
+                            {% endif %}
+                        </td>
                         {% if show_types %}
                             <td class="types">
                                 {% for type in mcq.types_list %}
