@@ -13,7 +13,7 @@ from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _, ngettext
 from django.views.decorators.http import require_POST
 from reversion.admin import VersionAdmin
-from judge.models import Class, Contest, ContestProblem, ContestSubmission, Profile, Rating, Submission
+from judge.models import Class, Contest, ContestProblem, ContestSubmission, Profile, Rating, Submission, ContestMCQ
 from judge.ratings import rate_contest
 from judge.utils.views import NoBatchDeleteMixin
 from judge.widgets import AdminAceWidget, AdminHeavySelect2MultipleWidget, AdminHeavySelect2Widget, \
@@ -87,6 +87,21 @@ class ContestProblemInline(SortableInlineAdminMixin, admin.TabularInline):
                            reverse('admin:judge_contest_rejudge', args=(obj.contest.id, obj.id)), _('Rejudge'))
 
 
+class ContestMCQInlineForm(ModelForm):
+    class Meta:
+        model = ContestMCQ
+        fields = '__all__'
+
+
+class ContestMCQInline(SortableInlineAdminMixin, admin.TabularInline):
+    model = ContestMCQ
+    verbose_name = _('MCQ Question')
+    verbose_name_plural = _('MCQ Questions')
+    fields = ('mcq_question', 'points', 'order')
+    form = ContestMCQInlineForm
+    extra = 0
+
+
 class ContestForm(ModelForm):
     emails_csv = forms.FileField(
         required=False,
@@ -149,7 +164,7 @@ class ContestAdmin(NoBatchDeleteMixin, SortableAdminBase, VersionAdmin):
     list_display = ('key', 'name', 'is_visible', 'is_rated', 'locked_after', 'start_time', 'end_time', 'time_limit',
                     'user_count')
     search_fields = ('key', 'name')
-    inlines = [ContestProblemInline]
+    inlines = [ContestProblemInline, ContestMCQInline]
     actions_on_top = True
     actions_on_bottom = True
     form = ContestForm

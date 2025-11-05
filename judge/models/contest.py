@@ -17,7 +17,8 @@ from judge.models.profile import Class, Organization, Profile
 from judge.models.submission import Submission
 from judge.ratings import rate_contest
 
-__all__ = ['Contest', 'ContestTag', 'ContestParticipation', 'ContestProblem', 'ContestSubmission', 'Rating']
+__all__ = ['Contest', 'ContestTag', 'ContestParticipation', 'ContestProblem', 'ContestSubmission', 'Rating', 
+           'ContestMCQ']
 
 
 class MinValueOrNoneValidator(MinValueValidator):
@@ -683,3 +684,20 @@ class ContestMoss(models.Model):
         unique_together = ('contest', 'problem', 'language')
         verbose_name = _('contest moss result')
         verbose_name_plural = _('contest moss results')
+
+
+class ContestMCQ(models.Model):
+    from judge.models.mcq import MCQQuestion
+    
+    mcq_question = models.ForeignKey('MCQQuestion', verbose_name=_('MCQ question'), 
+                                     related_name='contests', on_delete=CASCADE)
+    contest = models.ForeignKey(Contest, verbose_name=_('contest'), 
+                                related_name='contest_mcqs', on_delete=CASCADE)
+    points = models.IntegerField(verbose_name=_('points'))
+    order = models.PositiveIntegerField(db_index=True, verbose_name=_('order'))
+
+    class Meta:
+        unique_together = ('mcq_question', 'contest')
+        verbose_name = _('contest MCQ question')
+        verbose_name_plural = _('contest MCQ questions')
+        ordering = ('order',)
