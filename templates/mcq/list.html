@@ -142,14 +142,20 @@
                         </th>
                     {% endif %}
                     <th class="points">
-                        <a href="{{ sort_links.points }}">{{ _('Points') }}{{ sort_order.points }}</a>
+                        {% if in_contest %}
+                            {{ _('Points') }}
+                        {% else %}
+                            <a href="{{ sort_links.points }}">{{ _('Points') }}{{ sort_order.points }}</a>
+                        {% endif %}
                     </th>
-                    <th class="ac-rate">
-                        <a href="{{ sort_links.ac_rate }}">{{ _('AC %%') }}{{ sort_order.ac_rate }}</a>
-                    </th>
-                    <th class="users">
-                        <a href="{{ sort_links.user_count }}">{{ _('Users') }}{{ sort_order.user_count }}</a>
-                    </th>
+                    {% if not in_contest %}
+                        <th class="ac-rate">
+                            <a href="{{ sort_links.ac_rate }}">{{ _('AC %%') }}{{ sort_order.ac_rate }}</a>
+                        </th>
+                        <th class="users">
+                            <a href="{{ sort_links.user_count }}">{{ _('Users') }}{{ sort_order.user_count }}</a>
+                        </th>
+                    {% endif %}
                 </tr>
                 </thead>
                 <tbody>
@@ -200,14 +206,24 @@
                         </td>
                         {% if show_types %}
                             <td class="types">
-                                {% for type in mcq.types_list %}
-                                    <span class="type-tag">{{ type }}</span>{% if not loop.last %}, {% endif %}
-                                {% endfor %}
+                                {% if not in_contest %}
+                                    {% for type in mcq.types_list %}
+                                        <span class="type-tag">{{ type }}</span>{% if not loop.last %}, {% endif %}
+                                    {% endfor %}
+                                {% endif %}
                             </td>
                         {% endif %}
-                        <td class="points">{{ mcq.points|floatformat }}</td>
-                        <td class="ac-rate">{{ mcq.ac_rate|floatformat(1) }}%</td>
-                        <td class="users">{{ mcq.user_count }}</td>
+                        <td class="points">
+                            {% if in_contest %}
+                                {{ mcq.contest_points|floatformat }}
+                            {% else %}
+                                {{ mcq.points|floatformat }}
+                            {% endif %}
+                        </td>
+                        {% if not in_contest %}
+                            <td class="ac-rate">{{ mcq.ac_rate|floatformat(1) }}%</td>
+                            <td class="users">{{ mcq.user_count }}</td>
+                        {% endif %}
                     </tr>
                 {% endfor %}
                 </tbody>

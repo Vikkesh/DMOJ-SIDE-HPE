@@ -157,6 +157,16 @@
 {% endblock %}
 
 {% block js_media %}
+    <script>
+        // If this page is loaded inside an iframe, notify the parent.
+        if (window.parent !== window) {
+            // Notify the parent wrapper that this page has loaded.
+            window.parent.postMessage(
+                { proctoringPage: "mcq_detail" },
+                window.location.origin
+            );
+        }
+    </script>
     {% compress js %}
         <script>
             document.addEventListener('DOMContentLoaded', function() {

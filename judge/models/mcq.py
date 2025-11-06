@@ -294,6 +294,24 @@ class MCQSubmission(models.Model):
         auto_now_add=True,
         verbose_name=_('submission time')
     )
+    contest_object = models.ForeignKey(
+        'ContestMCQ',
+        verbose_name=_('contest MCQ'),
+        null=True,
+        blank=True,
+        on_delete=CASCADE,
+        related_name='submissions',
+        help_text=_('Contest MCQ this submission belongs to (if in contest)')
+    )
+    participation = models.ForeignKey(
+        'ContestParticipation',
+        verbose_name=_('contest participation'),
+        null=True,
+        blank=True,
+        on_delete=CASCADE,
+        related_name='mcq_submissions',
+        help_text=_('Contest participation this submission belongs to (if in contest)')
+    )
 
     def __str__(self):
         return f"{self.user.user.username} - {self.question.code}"
@@ -302,7 +320,8 @@ class MCQSubmission(models.Model):
         verbose_name = _('MCQ submission')
         verbose_name_plural = _('MCQ submissions')
         ordering = ['-submitted_at']
-        unique_together = [['question', 'user']]
+        # Allow multiple submissions per user per question if different contests
+        # but only one submission per user per question outside contests
 
     def calculate_score(self):
         """

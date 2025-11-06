@@ -53,17 +53,34 @@ class MCQMixin(object):
 
 class SolvedMCQMixin(object):
     def get_completed_mcqs(self):
-        if self.profile is not None:
+        if self.in_contest:
+            # Get completed MCQs in this contest
+            participation = self.profile.current_contest
             return set(MCQSubmission.objects.filter(
                 user=self.profile,
-                is_correct=True
+                is_correct=True,
+                participation=participation
+            ).values_list('question_id', flat=True))
+        elif self.profile is not None:
+            return set(MCQSubmission.objects.filter(
+                user=self.profile,
+                is_correct=True,
+                participation__isnull=True  # Only non-contest submissions
             ).values_list('question_id', flat=True))
         return set()
 
     def get_attempted_mcqs(self):
-        if self.profile is not None:
+        if self.in_contest:
+            # Get attempted MCQs in this contest
+            participation = self.profile.current_contest
             return set(MCQSubmission.objects.filter(
-                user=self.profile
+                user=self.profile,
+                participation=participation
+            ).values_list('question_id', flat=True))
+        elif self.profile is not None:
+            return set(MCQSubmission.objects.filter(
+                user=self.profile,
+                participation__isnull=True  # Only non-contest submissions
             ).values_list('question_id', flat=True))
         return set()
 
@@ -72,6 +89,14 @@ class SolvedMCQMixin(object):
         if not self.request.user.is_authenticated:
             return None
         return self.request.profile
+    
+    @cached_property
+    def in_contest(self):
+        return self.profile is not None and self.profile.current_contest is not None
+    
+    @cached_property
+    def contest(self):
+        return self.profile.current_contest.contest if self.in_contest else None
 
 
 class MCQList(QueryStringSortMixin, TitleMixin, SolvedMCQMixin, ListView):
@@ -88,12 +113,18 @@ class MCQList(QueryStringSortMixin, TitleMixin, SolvedMCQMixin, ListView):
 
     def get_paginator(self, queryset, per_page, orphans=0,
                       allow_empty_first_page=True, **kwargs):
+        # In contest mode, queryset is a list, so handle differently
+        if isinstance(queryset, list):
+            count = len(queryset)
+        else:
+            count = queryset.values('pk').count()
+            
         paginator = DiggPaginator(queryset, per_page, body=6, padding=2, orphans=orphans,
-                                  count=queryset.values('pk').count(),
+                                  count=count,
                                   allow_empty_first_page=allow_empty_first_page, **kwargs)
         
         sort_key = self.order.lstrip('-')
-        if sort_key in self.sql_sort:
+        if not isinstance(queryset, list) and sort_key in self.sql_sort:
             queryset = queryset.order_by(self.order, 'id')
         elif sort_key == 'name':
             queryset = queryset.order_by(self.order, 'id')
@@ -128,7 +159,38 @@ class MCQList(QueryStringSortMixin, TitleMixin, SolvedMCQMixin, ListView):
             return None
         return self.request.profile
 
-    def get_queryset(self):
+    def get_contest_queryset(self):
+        """Get MCQs for the current contest"""
+        from judge.models import ContestMCQ
+        
+        # Get the MCQ IDs that are in this contest
+        contest_mcq_data = ContestMCQ.objects.filter(
+            contest=self.contest
+        ).values('mcq_question_id', 'points', 'order')
+        
+        # Create a dict for quick lookup of contest data
+        contest_data = {cm['mcq_question_id']: {'points': cm['points'], 'order': cm['order']} 
+                       for cm in contest_mcq_data}
+        mcq_ids = list(contest_data.keys())
+        
+        # Get the actual MCQQuestion objects
+        queryset = MCQQuestion.objects.filter(
+            id__in=mcq_ids
+        ).select_related('group').prefetch_related('options')
+        
+        # Annotate each MCQ with its contest-specific data
+        mcqs = list(queryset)
+        for mcq in mcqs:
+            mcq.contest_points = contest_data[mcq.id]['points']
+            mcq.contest_order = contest_data[mcq.id]['order']
+        
+        # Sort by contest order
+        mcqs.sort(key=lambda x: x.contest_order)
+        
+        return mcqs
+
+    def get_normal_queryset(self):
+        """Get MCQs for normal (non-contest) viewing"""
         filter = Q(is_public=True)
         if self.profile is not None:
             # Include questions user is author/curator of
@@ -151,36 +213,74 @@ class MCQList(QueryStringSortMixin, TitleMixin, SolvedMCQMixin, ListView):
         if self.selected_types:
             queryset = queryset.filter(types__in=self.selected_types)
         
-        if 'search' in self.request.GET:
-            self.search_query = query = ' '.join(self.request.GET.getlist('search')).strip()
-            if query:
-                queryset = queryset.filter(
-                    Q(code__icontains=query) | Q(name__icontains=query) | Q(description__icontains=query)
-                )
+        if self.search_query:
+            queryset = queryset.filter(
+                Q(code__icontains=self.search_query) |
+                Q(name__icontains=self.search_query) |
+                Q(description__icontains=self.search_query)
+            )
         
-        return queryset.distinct()
+        return queryset
+
+    def get_queryset(self):
+        if self.in_contest:
+            return self.get_contest_queryset()
+        else:
+            return self.get_normal_queryset()
 
     def get_context_data(self, **kwargs):
         context = super(MCQList, self).get_context_data(**kwargs)
-        context['hide_solved'] = int(self.hide_solved)
-        context['show_types'] = int(self.show_types)
-        context['category'] = self.category
-        context['categories'] = ProblemGroup.objects.all()
         
-        if self.show_types:
-            context['selected_types'] = self.selected_types
-            context['mcq_types'] = ProblemType.objects.all()
+        # In contest mode, show different UI
+        if self.in_contest:
+            context['in_contest'] = True
+            context['contest'] = self.contest
+            context['hide_solved'] = 0
+            context['show_types'] = 0
+            context['category'] = None
+            context['search_query'] = ''
+            # Provide empty sort context for contest mode (sorting disabled but links still needed)
+            context['sort_links'] = {
+                'solved': '#',
+                'name': '#',
+                'group': '#',
+                'type': '#',
+                'points': '#',
+                'ac_rate': '#',
+                'user_count': '#'
+            }
+            context['sort_order'] = {
+                'solved': '',
+                'name': '',
+                'group': '',
+                'type': '',
+                'points': '',
+                'ac_rate': '',
+                'user_count': ''
+            }
+        else:
+            context['in_contest'] = False
+            context['hide_solved'] = int(self.hide_solved)
+            context['show_types'] = int(self.show_types)
+            context['category'] = self.category
+            context['categories'] = ProblemGroup.objects.all()
+            
+            if self.show_types:
+                context['selected_types'] = self.selected_types
+                context['mcq_types'] = ProblemType.objects.all()
+            
+            context['search_query'] = self.search_query
+            
+            # Get types list for each MCQ (only in normal mode)
+            if not isinstance(context['mcqs'], list):
+                for mcq in context['mcqs']:
+                    mcq.types_list = list(mcq.types.values_list('full_name', flat=True))
+            
+            # Add sorting context
+            context.update(self.get_sort_context())
         
-        context['search_query'] = self.search_query
         context['completed_mcq_ids'] = self.get_completed_mcqs()
         context['attempted_mcqs'] = self.get_attempted_mcqs()
-        
-        # Get types list for each MCQ
-        for mcq in context['mcqs']:
-            mcq.types_list = list(mcq.types.values_list('full_name', flat=True))
-        
-        # Add sorting context
-        context.update(self.get_sort_context())
         
         return context
 
