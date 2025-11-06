@@ -3,6 +3,12 @@
 {% block tabs %}
     {% set local_debug = debug|default(False) %}
     {{ make_tab('detail', 'fa-info-circle', url('contest_view', contest.key), _('Info')) }}
+    
+    {# Add MCQ tab if contest has MCQ questions #}
+    {% if contest.contest_mcqs.exists() %}
+        {{ make_tab('mcqs', 'fa-question-circle', url('contest_mcq_list', contest.key), _('MCQ Questions')) }}
+    {% endif %}
+    
     {% if contest.ended or can_edit %}
         {{ make_tab('stats', 'fa-pie-chart', url('contest_stats', contest.key), _('Statistics')) }}
     {% endif %}

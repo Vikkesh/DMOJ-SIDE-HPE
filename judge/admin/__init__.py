@@ -14,10 +14,11 @@ from judge.admin.submission import SubmissionAdmin
 from judge.admin.taxon import ProblemGroupAdmin, ProblemTypeAdmin
 from judge.admin.ticket import TicketAdmin
 from judge.admin.emailing import EmailTemplateAdmin, BulkEmailCampaignAdmin, EmailRecipientAdmin, EmailLogAdmin
+from judge.admin.mcq import MCQQuestionAdmin, MCQSubmissionAdmin
 from judge.models import BlogPost, Class, Comment, CommentLock, Contest, ContestParticipation, \
     ContestTag, Judge, Language, License, MiscConfig, NavigationBar, Organization, \
     OrganizationRequest, Problem, ProblemGroup, ProblemPointsVote, ProblemType, Profile, Submission, Ticket, \
-    EmailTemplate, BulkEmailCampaign, EmailRecipient, EmailLog
+    EmailTemplate, BulkEmailCampaign, EmailRecipient, EmailLog, MCQQuestion, MCQSubmission
 
 admin.site.register(BlogPost, BlogPostAdmin)
 admin.site.register(Comment, CommentAdmin)
@@ -46,3 +47,5 @@ admin.site.register(Ticket, TicketAdmin)
 # Email models are registered via @admin.register decorators in emailing.py
 admin.site.unregister(User)
 admin.site.register(User, UserAdmin)
+admin.site.register(MCQQuestion, MCQQuestionAdmin)
+admin.site.register(MCQSubmission, MCQSubmissionAdmin)

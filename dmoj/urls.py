@@ -19,9 +19,9 @@ from judge.views.trial_script import show_similarity_table
 
 from judge.feed import AtomBlogFeed, AtomCommentFeed, AtomProblemFeed, BlogFeed, CommentFeed, ProblemFeed
 from judge.sitemap import sitemaps
-from judge.views import TitledTemplateView, api, blog, comment, contests, language, license, mailgun, organization, \
+from judge.views import TitledTemplateView, api, blog, comment, contests, language, license, mailgun, mcq, organization, \
     preview, problem, problem_manage, ranked_submission, register, stats, status, submission, tasks, ticket, \
-    two_factor, user, widgets
+    two_factor, user, widgets, contest_mcq
 from judge.views.problem_data import ProblemDataView, ProblemSubmissionDiff, \
     problem_data_file, problem_init_view
 from judge.views.register import ActivationView, RegistrationView
@@ -111,6 +111,11 @@ urlpatterns = [
 
     path('problems/', xframe_options_exempt(problem.ProblemList.as_view()), name='problem_list'),
     path('problems/random/', xframe_options_exempt(problem.RandomProblem.as_view()), name='problem_random'),
+
+    # MCQ paths
+    path('mcq/', xframe_options_exempt(mcq.MCQList.as_view()), name='mcq_list'),
+    path('mcq/<str:mcq>/', xframe_options_exempt(mcq.MCQDetail.as_view()), name='mcq_detail'),
+    path('mcq/<str:mcq>/submit', mcq.MCQSubmitView.as_view(), name='mcq_submit'),
 
     # AJAX endpoints for unified problem page
     path('ajax/language_template/', problem.LanguageTemplateAjax.as_view(), name='language_template_ajax'),
@@ -239,6 +244,11 @@ urlpatterns = [
              xframe_options_exempt(contests.ContestParticipationList.as_view()), name='contest_participation'),
         path('/participation/disqualify', xframe_options_exempt(contests.ContestParticipationDisqualify.as_view()),
              name='contest_participation_disqualify'),
+
+        # Contest MCQ paths
+        path('/mcqs/', xframe_options_exempt(contest_mcq.ContestMCQListView.as_view()), name='contest_mcq_list'),
+        path('/mcq/<str:mcq_code>/', xframe_options_exempt(contest_mcq.ContestMCQDetailView.as_view()), name='contest_mcq_detail'),
+        path('/mcq/<str:mcq_code>/submit', contest_mcq.ContestMCQSubmitView.as_view(), name='contest_mcq_submit'),
 
         path('/', xframe_options_exempt(lambda _, contest: HttpResponsePermanentRedirect(reverse('contest_view', args=[contest])))),
     ])),

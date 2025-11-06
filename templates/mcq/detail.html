@@ -1,0 +1,391 @@
+{% extends "common-content.html" %}
+
+{% block media %}
+    <style>
+        .mcq-container {
+            max-width: 900px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+        
+        .mcq-header {
+            background: #f5f5f5;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        
+        .mcq-header h1 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        
+        .mcq-meta {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-top: 15px;
+        }
+        
+        .mcq-meta-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .mcq-description {
+            background: white;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+        
+        .mcq-options {
+            margin: 20px 0;
+        }
+        
+        .mcq-option {
+            background: white;
+            border: 2px solid #ddd;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .mcq-option:hover {
+            border-color: #4CAF50;
+            background: #f9f9f9;
+        }
+        
+        .mcq-option input[type="radio"],
+        .mcq-option input[type="checkbox"] {
+            margin-right: 10px;
+            transform: scale(1.2);
+        }
+        
+        .mcq-option label {
+            cursor: pointer;
+            margin: 0;
+            display: block;
+        }
+        
+        .mcq-option.correct {
+            border-color: #4CAF50;
+            background: #e8f5e9;
+        }
+        
+        .mcq-option.incorrect {
+            border-color: #f44336;
+            background: #ffebee;
+        }
+        
+        .mcq-option.not-selected {
+            opacity: 0.6;
+        }
+        
+        .mcq-submit-btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        
+        .mcq-submit-btn:hover {
+            background: #45a049;
+        }
+        
+        .mcq-submit-btn:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+        }
+        
+        .mcq-result {
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        
+        .mcq-result.correct {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        
+        .mcq-result.incorrect {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        
+        .mcq-explanation {
+            background: #e3f2fd;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 3px;
+        }
+        
+        .mcq-explanation h4 {
+            margin-top: 0;
+            color: #1976D2;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            font-size: 12px;
+            font-weight: bold;
+            border-radius: 3px;
+            margin-right: 5px;
+        }
+        
+        .badge-success { background: #4CAF50; color: white; }
+        .badge-warning { background: #FF9800; color: white; }
+        .badge-danger { background: #f44336; color: white; }
+        .badge-info { background: #2196F3; color: white; }
+    </style>
+{% endblock %}
+
+{% block js_media %}
+    <script>
+        // If this page is loaded inside an iframe, notify the parent.
+        if (window.parent !== window) {
+            // Notify the parent wrapper that this page has loaded.
+            window.parent.postMessage(
+                { proctoringPage: "mcq_detail" },
+                window.location.origin
+            );
+        }
+    </script>
+    {% compress js %}
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                var form = document.getElementById('mcq-form');
+                var submitBtn = document.getElementById('submit-mcq');
+                
+                if (!form || !submitBtn) return;
+                
+                var submitted = {% if user_submission %}true{% else %}false{% endif %};
+                
+                // Handle form submission
+                form.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    
+                    if (submitted) {
+                        alert('{{ _("You have already submitted an answer for this question.") }}');
+                        return false;
+                    }
+                    
+                    // Get all checked options
+                    var selectedOptions = [];
+                    var checkedInputs = document.querySelectorAll('.mcq-option input:checked');
+                    checkedInputs.forEach(function(input) {
+                        selectedOptions.push(input.value);
+                    });
+                    
+                    // Disable button and show submitting state
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> {{ _("Submitting...") }}';
+                    
+                    // Prepare form data
+                    var formData = new FormData();
+                    selectedOptions.forEach(function(optionId) {
+                        formData.append('options', optionId);
+                    });
+                    formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+                    
+                    // Send AJAX request
+                    fetch('{{ url("mcq_submit", mcq.code) }}', {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    })
+                    .then(function(response) {
+                        return response.json();
+                    })
+                    .then(function(data) {
+                        if (data.success) {
+                            // Reload page to show results
+                            window.location.reload();
+                        } else {
+                            alert(data.error || '{{ _("An error occurred.") }}');
+                            submitBtn.disabled = false;
+                            submitBtn.innerHTML = '<i class="fa fa-paper-plane"></i> {{ _("Submit Answer") }}';
+                        }
+                    })
+                    .catch(function(error) {
+                        console.error('Error:', error);
+                        alert('{{ _("An error occurred. Please try again.") }}');
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = '<i class="fa fa-paper-plane"></i> {{ _("Submit Answer") }}';
+                    });
+                    
+                    return false;
+                });
+            });
+        </script>
+    {% endcompress %}
+{% endblock %}
+
+{% block title %}{{ mcq.name }}{% endblock %}
+
+{% block body %}
+    <div class="mcq-container">
+        <div class="mcq-header">
+            <h1>{{ mcq.name }}</h1>
+            <div class="mcq-meta">
+                <div class="mcq-meta-item">
+                    <strong>{{ _('Code:') }}</strong> {{ mcq.code }}
+                </div>
+                <div class="mcq-meta-item">
+                    <strong>{{ _('Type:') }}</strong>
+                    {% if mcq.question_type == 'SINGLE' %}
+                        <span class="badge badge-info">{{ _('Single Choice') }}</span>
+                    {% elif mcq.question_type == 'MULTIPLE' %}
+                        <span class="badge badge-warning">{{ _('Multiple Choice') }}</span>
+                    {% else %}
+                        <span class="badge badge-success">{{ _('True/False') }}</span>
+                    {% endif %}
+                </div>
+                <div class="mcq-meta-item">
+                    <strong>{{ _('Difficulty:') }}</strong>
+                    {% if mcq.difficulty == 'E' %}
+                        <span class="badge badge-success">{{ _('Easy') }}</span>
+                    {% elif mcq.difficulty == 'M' %}
+                        <span class="badge badge-warning">{{ _('Medium') }}</span>
+                    {% else %}
+                        <span class="badge badge-danger">{{ _('Hard') }}</span>
+                    {% endif %}
+                </div>
+                <div class="mcq-meta-item">
+                    <strong>{{ _('Points:') }}</strong> {{ mcq.points }}
+                </div>
+                <div class="mcq-meta-item">
+                    <strong>{{ _('Category:') }}</strong>
+                    {% if mcq.group %}
+                        {{ mcq.group.full_name }}
+                    {% else %}
+                        {{ _('Uncategorized') }}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="mcq-description content-description">
+            {{ mcq.description|markdown('problem', MATH_ENGINE)|reference|str|safe }}
+        </div>
+        
+        {% if user_submission %}
+            {# User has already submitted #}
+            <div class="mcq-result {% if user_submission.is_correct %}correct{% else %}incorrect{% endif %}">
+                {% if user_submission.is_correct %}
+                    <i class="fa fa-check-circle"></i> {{ _('Correct!') }} 
+                    {{ _('You earned') }} {{ user_submission.points_earned }} {{ _('points.') }}
+                {% else %}
+                    <i class="fa fa-times-circle"></i> {{ _('Incorrect.') }}
+                    {% if user_submission.points_earned > 0 %}
+                        {{ _('You earned') }} {{ user_submission.points_earned }} {{ _('points (partial credit).') }}
+                    {% else %}
+                        {{ _('You earned 0 points.') }}
+                    {% endif %}
+                {% endif %}
+            </div>
+            
+            <form id="mcq-form">
+                <div class="mcq-options">
+                    {% for option in options %}
+                        <div class="mcq-option 
+                            {% if option.is_correct %}correct{% endif %}
+                            {% if option.id in selected_option_ids and not option.is_correct %}incorrect{% endif %}
+                            {% if option.id not in selected_option_ids and not option.is_correct %}not-selected{% endif %}
+                        ">
+                            {% if mcq.question_type == 'SINGLE' or mcq.question_type == 'TRUE_FALSE' %}
+                                <input type="radio" name="option" value="{{ option.id }}" id="option_{{ option.id }}"
+                                    {% if option.id in selected_option_ids %}checked{% endif %} disabled>
+                            {% else %}
+                                <input type="checkbox" name="options" value="{{ option.id }}" id="option_{{ option.id }}"
+                                    {% if option.id in selected_option_ids %}checked{% endif %} disabled>
+                            {% endif %}
+                            <label for="option_{{ option.id }}">
+                                {{ option.option_text|markdown('problem', MATH_ENGINE)|reference|str|safe }}
+                                {% if option.is_correct %}
+                                    <i class="fa fa-check-circle" style="color: #4CAF50; margin-left: 10px;"></i>
+                                {% elif option.id in selected_option_ids %}
+                                    <i class="fa fa-times-circle" style="color: #f44336; margin-left: 10px;"></i>
+                                {% endif %}
+                            </label>
+                        </div>
+                    {% endfor %}
+                </div>
+            </form>
+            
+            {% if mcq.explanation %}
+                <div class="mcq-explanation">
+                    <h4><i class="fa fa-lightbulb-o"></i> {{ _('Explanation') }}</h4>
+                    {{ mcq.explanation|markdown('problem', MATH_ENGINE)|reference|str|safe }}
+                </div>
+            {% endif %}
+            
+        {% else %}
+            {# User hasn't submitted yet #}
+            {% if not request.user.is_authenticated %}
+                <div class="alert alert-info">
+                    <i class="fa fa-info-circle"></i>
+                    {{ _('You must') }} <a href="{{ url('auth_login') }}?next={{ request.path }}">{{ _('log in') }}</a> {{ _('to submit an answer.') }}
+                </div>
+            {% else %}
+                <form id="mcq-form">
+                    <div class="mcq-options">
+                        <p><strong>
+                            {% if mcq.question_type == 'SINGLE' or mcq.question_type == 'TRUE_FALSE' %}
+                                {{ _('Select ONE correct answer:') }}
+                            {% else %}
+                                {{ _('Select ALL correct answers:') }}
+                            {% endif %}
+                        </strong></p>
+                        
+                        {% for option in options %}
+                            <div class="mcq-option">
+                                {% if mcq.question_type == 'SINGLE' or mcq.question_type == 'TRUE_FALSE' %}
+                                    <input type="radio" name="option" value="{{ option.id }}" id="option_{{ option.id }}">
+                                {% else %}
+                                    <input type="checkbox" name="options" value="{{ option.id }}" id="option_{{ option.id }}">
+                                {% endif %}
+                                <label for="option_{{ option.id }}">
+                                    {{ option.option_text|markdown('problem', MATH_ENGINE)|reference|str|safe }}
+                                </label>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <button type="submit" id="submit-mcq" class="mcq-submit-btn">
+                        <i class="fa fa-paper-plane"></i> {{ _('Submit Answer') }}
+                    </button>
+                </form>
+            {% endif %}
+        {% endif %}
+        
+        <div style="margin-top: 30px;">
+            <a href="{{ url('mcq_list') }}" class="button">
+                <i class="fa fa-arrow-left"></i> {{ _('Back to MCQ List') }}
+            </a>
+            {% if can_edit_mcq %}
+                <a href="{{ url('admin:judge_mcqquestion_change', mcq.id) }}" class="button">
+                    <i class="fa fa-edit"></i> {{ _('Edit Question') }}
+                </a>
+            {% endif %}
+        </div>
+    </div>
+{% endblock %}
