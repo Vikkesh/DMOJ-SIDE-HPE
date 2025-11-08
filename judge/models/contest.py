@@ -18,7 +18,7 @@ from judge.models.submission import Submission
 from judge.ratings import rate_contest
 
 __all__ = ['Contest', 'ContestTag', 'ContestParticipation', 'ContestProblem', 'ContestSubmission', 'Rating', 
-           'ContestMCQ']
+           'ContestMCQ', 'ContestMCQResult']
 
 
 class MinValueOrNoneValidator(MinValueValidator):
@@ -701,3 +701,67 @@ class ContestMCQ(models.Model):
         verbose_name = _('contest MCQ question')
         verbose_name_plural = _('contest MCQ questions')
         ordering = ('order',)
+
+
+class ContestMCQResult(models.Model):
+    """
+    Stores the final calculated result for a user's MCQ performance in a contest.
+    Created only when user submits or when contest time expires.
+    """
+    user = models.ForeignKey(Profile, verbose_name=_('user'), related_name='mcq_contest_results', on_delete=CASCADE)
+    contest = models.ForeignKey(Contest, verbose_name=_('contest'), related_name='mcq_results', on_delete=CASCADE)
+    participation = models.OneToOneField('ContestParticipation', verbose_name=_('participation'), 
+                                         related_name='mcq_result', on_delete=CASCADE, null=True, blank=True)
+    
+    total_questions = models.IntegerField(verbose_name=_('total questions'), default=0)
+    attempted = models.IntegerField(verbose_name=_('attempted'), default=0)
+    correct = models.IntegerField(verbose_name=_('correct'), default=0)
+    wrong = models.IntegerField(verbose_name=_('wrong'), default=0)
+    score = models.DecimalField(max_digits=10, decimal_places=2, verbose_name=_('score'), default=0)
+    
+    is_final = models.BooleanField(verbose_name=_('is final submission'), default=False,
+                                   help_text=_('True when user submits or time expires'))
+    submitted_at = models.DateTimeField(verbose_name=_('submitted at'), null=True, blank=True)
+    calculated_at = models.DateTimeField(verbose_name=_('calculated at'), auto_now=True)
+    
+    class Meta:
+        unique_together = ('user', 'contest')
+        verbose_name = _('contest MCQ result')
+        verbose_name_plural = _('contest MCQ results')
+        ordering = ('-score', '-submitted_at')
+    
+    def __str__(self):
+        return f'{self.user.username} - {self.contest.name}: {self.score} points'
+    
+    def calculate_score(self):
+        """
+        Calculate the final score by fetching all MCQ submissions for this user+contest
+        and comparing with correct answers.
+        """
+        from judge.models.mcq import MCQSubmission
+        
+        # Get all MCQ questions in this contest
+        contest_mcqs = self.contest.contest_mcqs.all()
+        self.total_questions = contest_mcqs.count()
+        
+        # Get all submissions for this user in this contest
+        submissions = MCQSubmission.objects.filter(
+            user=self.user,
+            participation=self.participation,
+            contest_object__contest=self.contest
+        ).select_related('question', 'contest_object').prefetch_related('selected_options')
+        
+        self.attempted = submissions.count()
+        self.correct = 0
+        self.wrong = 0
+        self.score = 0
+        
+        for submission in submissions:
+            if submission.is_correct:
+                self.correct += 1
+                self.score += submission.points_earned
+            else:
+                self.wrong += 1
+        
+        self.save()
+        return self.score
