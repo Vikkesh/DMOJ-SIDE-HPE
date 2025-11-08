@@ -319,11 +319,6 @@ class ContestDetail(ContestMixin, TitleMixin, CommentedDetailView):
         context['enable_social'] = settings.DMOJ_ENABLE_SOCIAL
         # Use centralized debug configuration
         context['debug'] = get_contest_template_debug()
-        
-        # Add MCQ count for tab visibility
-        context['has_mcqs'] = self.object.contest_mcqs.exists()
-        context['mcq_count'] = self.object.contest_mcqs.count()
-        
         return context
 
 

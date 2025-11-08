@@ -319,10 +319,31 @@ class MCQDetail(MCQMixin, SolvedMCQMixin, TitleMixin, DetailView):
         context['attempted_mcqs'] = self.get_attempted_mcqs()
         context['can_edit_mcq'] = self.object.is_editable_by(user) if user.is_authenticated else False
         
-        # Get user's submission if exists
+        # Add contest mode flags
+        context['in_contest'] = self.in_contest
+        context['show_answer'] = True  # Default to showing answers
+        
+        # Get user's submission if exists - filter by contest context
         if user.is_authenticated:
             try:
-                submission = MCQSubmission.objects.get(question=self.object, user=user.profile)
+                # Check if user is in a contest
+                if self.in_contest:
+                    # Get submission for current contest
+                    participation = self.profile.current_contest
+                    submission = MCQSubmission.objects.get(
+                        question=self.object, 
+                        user=user.profile,
+                        participation=participation
+                    )
+                    # Don't show answers during active contest
+                    context['show_answer'] = participation.ended
+                else:
+                    # Get regular (non-contest) submission
+                    submission = MCQSubmission.objects.get(
+                        question=self.object, 
+                        user=user.profile,
+                        participation__isnull=True
+                    )
                 context['user_submission'] = submission
                 context['selected_option_ids'] = list(submission.selected_options.values_list('id', flat=True))
             except MCQSubmission.DoesNotExist:
@@ -351,25 +372,13 @@ class MCQDetail(MCQMixin, SolvedMCQMixin, TitleMixin, DetailView):
         return context
 
 
-class MCQSubmitView(LoginRequiredMixin, MCQMixin, SingleObjectMixin, View):
-    """Handle MCQ answer submission"""
+class MCQSubmitView(LoginRequiredMixin, MCQMixin, SolvedMCQMixin, SingleObjectMixin, View):
+    """Handle MCQ answer submission - supports both contest and normal modes with auto-save"""
     
     def post(self, request, *args, **kwargs):
         self.object = self.get_object()
         
-        # Check if user already submitted
-        existing_submission = MCQSubmission.objects.filter(
-            question=self.object,
-            user=request.profile
-        ).first()
-        
-        if existing_submission:
-            return JsonResponse({
-                'success': False,
-                'error': _('You have already submitted an answer for this question.')
-            })
-        
-        # Get selected options (can be empty)
+        # Get selected options (can be empty for clearing answer)
         selected_option_ids = request.POST.getlist('options')
         
         # Validate selected options belong to this question (if any selected)
@@ -385,28 +394,163 @@ class MCQSubmitView(LoginRequiredMixin, MCQMixin, SingleObjectMixin, View):
                     'error': _('Invalid option selected.')
                 })
         else:
-            # No options selected - will result in 0 points
+            # No options selected - will clear the answer or result in 0 points
             selected_options = MCQOption.objects.none()
         
-        # Create submission
-        with transaction.atomic():
-            submission = MCQSubmission.objects.create(
-                question=self.object,
-                user=request.profile
-            )
-            submission.selected_options.set(selected_options)
-            submission.calculate_score()
+        # Check if user is in a contest
+        in_contest = self.in_contest
+        participation = self.profile.current_contest if in_contest else None
+        contest = self.contest if in_contest else None
         
-        # Update question statistics
-        self.object.user_count = MCQSubmission.objects.filter(question=self.object, is_correct=True).count()
-        total_submissions = MCQSubmission.objects.filter(question=self.object).count()
-        if total_submissions > 0:
-            self.object.ac_rate = (self.object.user_count / total_submissions) * 100
-        self.object.save(update_fields=['user_count', 'ac_rate'])
+        # Get or check ContestMCQ if in contest
+        contest_mcq = None
+        if in_contest and contest:
+            from judge.models import ContestMCQ
+            try:
+                contest_mcq = ContestMCQ.objects.get(contest=contest, mcq_question=self.object)
+            except ContestMCQ.DoesNotExist:
+                return JsonResponse({
+                    'success': False,
+                    'error': _('This MCQ is not part of the current contest.')
+                })
+        
+        # Create or update submission based on context
+        with transaction.atomic():
+            if in_contest and contest_mcq:
+                # Contest mode: Use get_or_create to allow answer updates
+                submission, created = MCQSubmission.objects.get_or_create(
+                    question=self.object,
+                    user=request.profile,
+                    participation=participation,
+                    contest_object=contest_mcq
+                )
+                
+                # Update selected options (allows changing answer)
+                submission.selected_options.set(selected_options)
+                
+                # Use contest points for scoring
+                self.object.points = contest_mcq.points
+                submission.calculate_score()
+                
+            else:
+                # Normal mode: Check if already submitted
+                existing_submission = MCQSubmission.objects.filter(
+                    question=self.object,
+                    user=request.profile,
+                    participation__isnull=True
+                ).first()
+                
+                if existing_submission:
+                    return JsonResponse({
+                        'success': False,
+                        'error': _('You have already submitted an answer for this question.')
+                    })
+                
+                # Create new submission
+                submission = MCQSubmission.objects.create(
+                    question=self.object,
+                    user=request.profile
+                )
+                submission.selected_options.set(selected_options)
+                submission.calculate_score()
+        
+        # Update question statistics (only for non-contest or after contest ends)
+        if not in_contest:
+            self.object.user_count = MCQSubmission.objects.filter(
+                question=self.object, 
+                is_correct=True,
+                participation__isnull=True
+            ).count()
+            total_submissions = MCQSubmission.objects.filter(
+                question=self.object,
+                participation__isnull=True
+            ).count()
+            if total_submissions > 0:
+                self.object.ac_rate = (self.object.user_count / total_submissions) * 100
+            self.object.save(update_fields=['user_count', 'ac_rate'])
+        
+        # Determine if we should show the answer
+        show_answer = True
+        if in_contest and contest_mcq:
+            # Don't show answer during active contest
+            show_answer = participation.ended if participation else False
         
         return JsonResponse({
             'success': True,
             'is_correct': submission.is_correct,
             'points_earned': submission.points_earned,
-            'redirect_url': reverse('mcq_detail', args=[self.object.code])
+            'show_answer': show_answer,
+            'in_contest': in_contest
+        })
+
+
+class MCQFinalSubmitView(LoginRequiredMixin, View):
+    """
+    Handle final MCQ submission when user clicks "Leave Contest" or time expires.
+    Calculates final score and locks submissions.
+    """
+    
+    def post(self, request, contest):
+        from judge.models.contest import Contest, ContestMCQResult
+        from django.utils import timezone
+        
+        try:
+            contest_obj = Contest.objects.get(key=contest)
+        except Contest.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Contest not found'
+            }, status=404)
+        
+        # Get current participation
+        participation = request.profile.current_contest
+        if not participation or participation.contest.key != contest:
+            return JsonResponse({
+                'success': False,
+                'error': 'You are not participating in this contest'
+            }, status=400)
+        
+        # Check if already submitted
+        existing_result = ContestMCQResult.objects.filter(
+            user=request.profile,
+            contest=contest_obj
+        ).first()
+        
+        if existing_result and existing_result.is_final:
+            return JsonResponse({
+                'success': False,
+                'error': 'You have already submitted your final answers',
+                'score': float(existing_result.score),
+                'correct': existing_result.correct,
+                'wrong': existing_result.wrong,
+                'attempted': existing_result.attempted,
+                'total_questions': existing_result.total_questions
+            }, status=400)
+        
+        # Create or get result object
+        result, created = ContestMCQResult.objects.get_or_create(
+            user=request.profile,
+            contest=contest_obj,
+            defaults={
+                'participation': participation
+            }
+        )
+        
+        # Calculate final score
+        final_score = result.calculate_score()
+        
+        # Mark as final and set submission time
+        result.is_final = True
+        result.submitted_at = timezone.now()
+        result.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Final submission successful! Your answers have been locked.',
+            'score': float(result.score),
+            'correct': result.correct,
+            'wrong': result.wrong,
+            'attempted': result.attempted,
+            'total_questions': result.total_questions,
+            'is_final': True
         })

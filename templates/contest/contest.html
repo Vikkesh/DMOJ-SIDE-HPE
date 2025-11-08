@@ -42,36 +42,101 @@
                 // Monitor form submissions that contain leave contest buttons
                 document.addEventListener('submit', function(e) {
                     if (e.target && e.target.querySelector('.contest-leave-btn')) {
-                        console.log("[DEBUG] Leave contest form submitted - processing actual leave first");
+                        console.log("[DEBUG] Leave contest form submitted - processing MCQ final submit first");
                         e.preventDefault(); // Prevent normal form submission
                         
                         // Get the form data
                         const form = e.target;
                         const formData = new FormData(form);
                         
-                        // Submit the leave contest form via AJAX
-                        fetch(form.action, {
-                            method: 'POST',
-                            body: formData,
-                            headers: {
-                                'X-CSRFToken': formData.get('csrfmiddlewaretoken')
-                            }
-                        }).then(response => {
-                            console.log("[DEBUG] Leave contest response:", response.status);
-                            if (response.ok) {
-                                console.log("[DEBUG] Successfully left contest, notifying parent to exit iframe");
-                                // Only exit iframe after successfully leaving contest
-                                window.parent.postMessage(
-                                    { proctoringAction: "leave_contest" },
-                                    window.location.origin
-                                );
+                        // Step 0: If on MCQ page, save current answer first
+                        const forceSaveCurrent = window.mcqFinalSave ? window.mcqFinalSave() : Promise.resolve();
+                        
+                        forceSaveCurrent.then(() => {
+                            // Step 1: Submit MCQ final score
+                            const contestKey = '{{ contest.key }}';
+                            const mcqFinalSubmitUrl = "{{ url('contest_mcq_final_submit', contest.key) }}";
+                            
+                            return fetch(mcqFinalSubmitUrl, {
+                                method: 'POST',
+                                headers: {
+                                    'X-CSRFToken': formData.get('csrfmiddlewaretoken'),
+                                    'Content-Type': 'application/json'
+                                }
+                            });
+                        }).then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                console.log("[DEBUG] MCQ final score calculated:", data);
+                                console.log("[DEBUG] Score:", data.score, "Correct:", data.correct, "Wrong:", data.wrong);
                             } else {
-                                console.error("[DEBUG] Failed to leave contest:", response.status);
-                                alert("Failed to leave contest. Please try again.");
+                                console.log("[DEBUG] MCQ final submit:", data.error || "No MCQs in contest");
                             }
                         }).catch(error => {
-                            console.error("[DEBUG] Error leaving contest:", error);
-                            alert("Error leaving contest. Please try again.");
+                            console.warn("[DEBUG] MCQ final submit failed (might be no MCQs):", error);
+                        }).finally(() => {
+                            // Step 2: Now leave the contest (regardless of MCQ submission result)
+                            fetch(form.action, {
+                                method: 'POST',
+                                body: formData,
+                                headers: {
+                                    'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+                                }
+                            }).then(response => {
+                                console.log("[DEBUG] Leave contest response:", response.status);
+                                if (response.ok) {
+                                    console.log("[DEBUG] Successfully left contest, notifying parent to exit iframe");
+                                    // Only exit iframe after successfully leaving contest
+                                    window.parent.postMessage(
+                                        { proctoringAction: "leave_contest" },
+                                        window.location.origin
+                                    );
+                                } else {
+                                    console.error("[DEBUG] Failed to leave contest:", response.status);
+                                    alert("Failed to leave contest. Please try again.");
+                                }
+                            }).catch(error => {
+                                console.error("[DEBUG] Error leaving contest:", error);
+                                alert("Error leaving contest. Please try again.");
+                            });
+                        });
+                    }
+                });
+            });
+        } else {
+            // Not in iframe - handle leave contest normally but still submit MCQ scores first
+            document.addEventListener('DOMContentLoaded', function() {
+                document.addEventListener('submit', function(e) {
+                    if (e.target && e.target.querySelector('.contest-leave-btn')) {
+                        console.log("[DEBUG] Leave contest - submitting MCQ final score first");
+                        e.preventDefault();
+                        
+                        const form = e.target;
+                        const formData = new FormData(form);
+                        const mcqFinalSubmitUrl = "{{ url('contest_mcq_final_submit', contest.key) }}";
+                        
+                        // Step 0: If on MCQ page, save current answer first
+                        const forceSaveCurrent = window.mcqFinalSave ? window.mcqFinalSave() : Promise.resolve();
+                        
+                        forceSaveCurrent.then(() => {
+                            // Step 1: Submit MCQ final score
+                            return fetch(mcqFinalSubmitUrl, {
+                                method: 'POST',
+                                headers: {
+                                    'X-CSRFToken': formData.get('csrfmiddlewaretoken'),
+                                    'Content-Type': 'application/json'
+                                }
+                            });
+                        }).then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                console.log("[DEBUG] MCQ final score calculated:", data);
+                            }
+                        }).catch(error => {
+                            console.warn("[DEBUG] MCQ final submit failed:", error);
+                        }).finally(() => {
+                            // Step 2: Now submit the leave contest form normally
+                            form.submit();
                         });
                     }
                 });
