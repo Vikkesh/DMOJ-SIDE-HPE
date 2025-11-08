@@ -160,31 +160,31 @@
             <strong id="contest-name">Loading...</strong>
         </p>
 
-        <!-- Step 1: Fullscreen Mode -->
-        <div id="fullscreen-step" class="step-container step-active">
-            <h3 class="step-title">Step 1: Enable Fullscreen Mode</h3>
-            <p class="step-description">
-                For security, this contest requires fullscreen mode. You cannot exit fullscreen during the contest.
-            </p>
-            <button id="fullscreenBtn" class="step-button btn-primary">
-                Enter Fullscreen Mode
-            </button>
-            <div id="fullscreen-status"></div>
-        </div>
-
-        <!-- Step 2: Camera Access -->
-        <div id="camera-step" class="step-container step-inactive">
-            <h3 class="step-title">Step 2: Enable Camera Access</h3>
+        <!-- Step 1: Camera Access -->
+        <div id="camera-step" class="step-container step-active">
+            <h3 class="step-title">Step 1: Enable Camera Access</h3>
             <p class="step-description">
                 Camera monitoring is required for proctoring. Please allow camera access when prompted.
             </p>
-            <button id="cameraBtn" class="step-button btn-primary" disabled>
+            <button id="cameraBtn" class="step-button btn-primary">
                 Enable Camera
             </button>
             <div id="camera-preview">
                 <video id="preview-video" autoplay muted playsinline></video>
             </div>
             <div id="camera-status"></div>
+        </div>
+
+        <!-- Step 2: Fullscreen Mode -->
+        <div id="fullscreen-step" class="step-container step-inactive">
+            <h3 class="step-title">Step 2: Enable Fullscreen Mode</h3>
+            <p class="step-description">
+                For security, this contest requires fullscreen mode. You cannot exit fullscreen during the contest.
+            </p>
+            <button id="fullscreenBtn" class="step-button btn-primary" disabled>
+                Enter Fullscreen Mode
+            </button>
+            <div id="fullscreen-status"></div>
         </div>
 
         <!-- Step 3: Start Contest -->
@@ -386,6 +386,32 @@
         }
 
         // Event listeners
+        elements.cameraBtn.addEventListener('click', async (event) => {
+            console.log("[STARTUP] Camera button clicked");
+            event.preventDefault();
+
+            // Check if camera is available
+            const hasCamera = await checkCameraPermissions();
+            if (!hasCamera) {
+                showStatus(elements.cameraStatus, 'No camera device detected. Please connect a camera.', 'error');
+                return;
+            }
+
+            try {
+                elements.cameraBtn.disabled = true;
+                await initializeCamera();
+                
+                isCameraEnabled = true;
+                elements.cameraBtn.textContent = '✓ Camera Enabled';
+                elements.cameraBtn.className = 'step-button btn-completed';
+                enableNextStep(elements.cameraStep, elements.fullscreenStep, elements.fullscreenBtn);
+                console.log("[STARTUP] Camera enabled successfully");
+            } catch (error) {
+                console.error("[STARTUP] Camera error:", error);
+                elements.cameraBtn.disabled = false;
+            }
+        });
+
         elements.fullscreenBtn.addEventListener('click', async (event) => {
             console.log("[STARTUP] Fullscreen button clicked");
             event.preventDefault();
@@ -406,7 +432,7 @@
                     isFullscreenEnabled = true;
                     elements.fullscreenBtn.textContent = '✓ Fullscreen Enabled';
                     elements.fullscreenBtn.className = 'step-button btn-completed';
-                    enableNextStep(elements.fullscreenStep, elements.cameraStep, elements.cameraBtn);
+                    enableNextStep(elements.fullscreenStep, elements.contestStep, elements.startBtn);
                     showStatus(elements.fullscreenStatus, '✓ Fullscreen mode enabled', 'success');
                     console.log("[STARTUP] Fullscreen enabled successfully");
                 } else {
@@ -416,32 +442,6 @@
                 console.error("[STARTUP] Fullscreen error:", error);
                 showStatus(elements.fullscreenStatus, 'Failed to enter fullscreen. Please try again.', 'error');
                 elements.fullscreenBtn.disabled = false;
-            }
-        });
-
-        elements.cameraBtn.addEventListener('click', async (event) => {
-            console.log("[STARTUP] Camera button clicked");
-            event.preventDefault();
-
-            // Check if camera is available
-            const hasCamera = await checkCameraPermissions();
-            if (!hasCamera) {
-                showStatus(elements.cameraStatus, 'No camera device detected. Please connect a camera.', 'error');
-                return;
-            }
-
-            try {
-                elements.cameraBtn.disabled = true;
-                await initializeCamera();
-                
-                isCameraEnabled = true;
-                elements.cameraBtn.textContent = '✓ Camera Enabled';
-                elements.cameraBtn.className = 'step-button btn-completed';
-                enableNextStep(elements.cameraStep, elements.contestStep, elements.startBtn);
-                console.log("[STARTUP] Camera enabled successfully");
-            } catch (error) {
-                console.error("[STARTUP] Camera error:", error);
-                elements.cameraBtn.disabled = false;
             }
         });
 

@@ -363,9 +363,11 @@
             if (event.data.proctoringAction === "end_session" || event.data.proctoringAction === "leave_contest") {
                 console.log("[MAIN] Leave contest command received");
                 stopProctoring();
+                // Redirect directly to contest detail page
+                const contestDetailUrl = "{{ url('contest_view', contest.key) }}";
                 setTimeout(() => {
-                    window.location.href = window.location.origin + "/contests/";
-                }, 3000);
+                    window.location.href = contestDetailUrl;
+                }, 500);
             }
 
             if (event.data.proctoringAction === "contest_violation") {
@@ -766,7 +768,8 @@
             // Reset UI
             document.body.classList.remove('proctoring-active');
             proctoringLayout.style.display = "none";
-            startupContainer.style.display = "block";
+            // Don't show startup container when stopping - user is leaving
+            // startupContainer.style.display = "block";
             
             console.log("[MAIN] Proctoring stopped successfully");
         }
