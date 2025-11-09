@@ -91,3 +91,5 @@ INFO 2025-11-09 15:31:07,691 judge_handler firstjudge: Grading has begun on: 21
 INFO 2025-11-09 15:31:08,558 judge_handler firstjudge: 3 test case(s) completed on: 21
 INFO 2025-11-09 15:31:08,569 judge_handler firstjudge: Grading has ended on: 21
 INFO 2025-11-09 15:31:08,570 judge_list Judge available after grading 21: firstjudge
+INFO 2025-11-09 15:33:26,341 judge_list Minimum tier changed from 1 to None
+INFO 2025-11-09 15:33:26,366 judge_handler Judge disconnected from: ('172.23.64.1', 57234) with name firstjudge
