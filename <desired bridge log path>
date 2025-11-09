@@ -17,3 +17,79 @@ INFO 2025-10-12 17:41:34,140 daemon Exiting due to SIGINT
 INFO 2025-11-09 11:24:28,683 daemon Exiting due to SIGINT
 INFO 2025-11-09 12:55:26,556 daemon Exiting due to SIGINT
 INFO 2025-11-09 13:23:49,225 daemon Exiting due to SIGINT
+INFO 2025-11-09 13:53:18,062 judge_handler Judge connected from: ('172.23.64.1', 49267)
+INFO 2025-11-09 13:53:18,070 judge_handler Judge authenticated: ('172.23.64.1', 49267) (firstjudge)
+INFO 2025-11-09 13:53:18,070 judge_list Minimum tier changed from None to 1
+INFO 2025-11-09 14:03:49,703 daemon Exiting due to SIGINT
+INFO 2025-11-09 14:04:06,598 judge_handler Judge connected from: ('172.23.64.1', 60224)
+INFO 2025-11-09 14:04:06,618 judge_handler Judge authenticated: ('172.23.64.1', 60224) (firstjudge)
+INFO 2025-11-09 14:04:06,619 judge_list Minimum tier changed from None to 1
+INFO 2025-11-09 14:44:24,266 daemon Exiting due to SIGINT
+INFO 2025-11-09 14:44:44,123 judge_handler Judge connected from: ('172.23.64.1', 49295)
+INFO 2025-11-09 14:44:44,129 judge_handler Judge authenticated: ('172.23.64.1', 49295) (firstjudge)
+INFO 2025-11-09 14:44:44,129 judge_list Minimum tier changed from None to 1
+INFO 2025-11-09 15:00:52,093 daemon Exiting due to SIGINT
+INFO 2025-11-09 15:01:17,049 judge_handler Judge connected from: ('172.23.64.1', 53615)
+INFO 2025-11-09 15:01:17,060 judge_handler Judge authenticated: ('172.23.64.1', 53615) (firstjudge)
+INFO 2025-11-09 15:01:17,060 judge_list Minimum tier changed from None to 1
+INFO 2025-11-09 15:03:00,263 judge_list Minimum tier changed from 1 to None
+INFO 2025-11-09 15:03:00,283 judge_handler Judge disconnected from: ('172.23.64.1', 53615) with name firstjudge
+INFO 2025-11-09 15:03:29,212 judge_handler Judge connected from: ('172.23.64.1', 57233)
+INFO 2025-11-09 15:03:29,219 judge_handler Judge authenticated: ('172.23.64.1', 57233) (firstjudge)
+INFO 2025-11-09 15:03:29,219 judge_list Minimum tier changed from None to 1
+INFO 2025-11-09 15:03:31,228 daemon Exiting due to SIGINT
+INFO 2025-11-09 15:03:45,665 judge_handler Judge connected from: ('172.23.64.1', 57234)
+INFO 2025-11-09 15:03:45,670 judge_handler Judge authenticated: ('172.23.64.1', 57234) (firstjudge)
+INFO 2025-11-09 15:03:45,670 judge_list Minimum tier changed from None to 1
+INFO 2025-11-09 15:04:24,262 judge_list Free judges: 1
+INFO 2025-11-09 15:04:24,263 judge_list Dispatched submission 20 to: firstjudge
+INFO 2025-11-09 15:04:24,277 judge_handler Submission acknowledged: 20
+INFO 2025-11-09 15:04:24,524 judge_handler firstjudge: Submission failed to compile: 20
+INFO 2025-11-09 15:04:24,524 judge_list Judge available after grading 20: firstjudge
+INFO 2025-11-09 15:04:27,967 judge_list Free judges: 1
+INFO 2025-11-09 15:04:27,967 judge_list Dispatched submission 20 to: firstjudge
+INFO 2025-11-09 15:04:27,978 judge_handler Submission acknowledged: 20
+INFO 2025-11-09 15:04:28,157 judge_handler firstjudge: Submission failed to compile: 20
+INFO 2025-11-09 15:04:28,157 judge_list Judge available after grading 20: firstjudge
+INFO 2025-11-09 15:04:40,345 judge_list Free judges: 1
+INFO 2025-11-09 15:04:40,345 judge_list Dispatched submission 20 to: firstjudge
+INFO 2025-11-09 15:04:40,356 judge_handler Submission acknowledged: 20
+INFO 2025-11-09 15:04:40,510 judge_handler firstjudge: Submission generated compiler messages: 20
+INFO 2025-11-09 15:04:40,514 judge_handler firstjudge: Grading has begun on: 20
+INFO 2025-11-09 15:04:40,614 judge_handler firstjudge: 1 test case(s) completed on: 20
+INFO 2025-11-09 15:04:40,749 judge_handler firstjudge: 2 test case(s) completed on: 20
+INFO 2025-11-09 15:04:40,757 judge_handler firstjudge: Grading has ended on: 20
+INFO 2025-11-09 15:04:40,757 judge_list Judge available after grading 20: firstjudge
+INFO 2025-11-09 15:04:42,182 judge_list Free judges: 1
+INFO 2025-11-09 15:04:42,182 judge_list Dispatched submission 20 to: firstjudge
+INFO 2025-11-09 15:04:42,198 judge_handler Submission acknowledged: 20
+INFO 2025-11-09 15:04:42,323 judge_handler firstjudge: Submission generated compiler messages: 20
+INFO 2025-11-09 15:04:42,328 judge_handler firstjudge: Grading has begun on: 20
+INFO 2025-11-09 15:04:42,607 judge_handler firstjudge: 3 test case(s) completed on: 20
+INFO 2025-11-09 15:04:42,616 judge_handler firstjudge: Grading has ended on: 20
+INFO 2025-11-09 15:04:42,617 judge_list Judge available after grading 20: firstjudge
+INFO 2025-11-09 15:17:28,817 judge_list Free judges: 1
+INFO 2025-11-09 15:17:28,820 judge_list Dispatched submission 20 to: firstjudge
+INFO 2025-11-09 15:17:28,830 judge_handler Submission acknowledged: 20
+INFO 2025-11-09 15:17:28,872 judge_handler firstjudge: Submission failed to compile: 20
+INFO 2025-11-09 15:17:28,872 judge_list Judge available after grading 20: firstjudge
+INFO 2025-11-09 15:17:39,380 judge_list Free judges: 1
+INFO 2025-11-09 15:17:39,381 judge_list Dispatched submission 20 to: firstjudge
+INFO 2025-11-09 15:17:39,392 judge_handler Submission acknowledged: 20
+INFO 2025-11-09 15:17:39,426 judge_handler firstjudge: Submission failed to compile: 20
+INFO 2025-11-09 15:17:39,426 judge_list Judge available after grading 20: firstjudge
+INFO 2025-11-09 15:17:42,018 judge_list Free judges: 1
+INFO 2025-11-09 15:17:42,019 judge_list Dispatched submission 20 to: firstjudge
+INFO 2025-11-09 15:17:42,030 judge_handler Submission acknowledged: 20
+INFO 2025-11-09 15:17:42,059 judge_handler firstjudge: Submission failed to compile: 20
+INFO 2025-11-09 15:17:42,059 judge_list Judge available after grading 20: firstjudge
+INFO 2025-11-09 15:31:07,387 judge_list Free judges: 1
+INFO 2025-11-09 15:31:07,394 judge_list Dispatched submission 21 to: firstjudge
+INFO 2025-11-09 15:31:07,420 judge_handler Submission acknowledged: 21
+INFO 2025-11-09 15:31:07,681 judge_handler firstjudge: Submission generated compiler messages: 21
+INFO 2025-11-09 15:31:07,691 judge_handler firstjudge: Grading has begun on: 21
+INFO 2025-11-09 15:31:08,558 judge_handler firstjudge: 3 test case(s) completed on: 21
+INFO 2025-11-09 15:31:08,569 judge_handler firstjudge: Grading has ended on: 21
+INFO 2025-11-09 15:31:08,570 judge_list Judge available after grading 21: firstjudge
+INFO 2025-11-09 15:33:26,341 judge_list Minimum tier changed from 1 to None
+INFO 2025-11-09 15:33:26,366 judge_handler Judge disconnected from: ('172.23.64.1', 57234) with name firstjudge
