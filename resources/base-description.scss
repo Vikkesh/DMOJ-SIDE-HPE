@@ -4,10 +4,12 @@
     line-height: 1.5em;
     font-size: 1em;
     font-family: "Segoe UI", "Lucida Grande", Arial, sans-serif;
+    color: $color_primary90;
 
     p {
         margin: 1em 0 !important;
         padding: 0 !important;
+        color: $color_primary90;
     }
 
     img {
@@ -160,14 +162,24 @@
 
     ul, ol {
         padding: 0 0 0 2em;
+        color: $color_primary90;
     }
 
-    li p:last-child {
-        margin: 0;
+    li {
+        color: $color_primary90;
+        
+        p:last-child {
+            margin: 0;
+        }
     }
 
     dd {
         margin: 0 0 0 2em;
+        color: $color_primary90;
+    }
+    
+    div, span {
+        color: inherit;
     }
 
     img {

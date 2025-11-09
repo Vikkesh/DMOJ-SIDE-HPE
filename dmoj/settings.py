@@ -196,6 +196,14 @@ else:
                         'judge.ProblemPointsVote',
                     ],
                 },
+                {
+                    'model': 'judge.MCQQuestion',
+                    'icon': 'fa-list-ul',
+                    'name': 'MCQ Problems',
+                    'children': [
+                        'judge.MCQSubmission',
+                    ],
+                },
                 ('judge.Submission', 'fa-check-square-o'),
                 {
                     'model': 'judge.Language',

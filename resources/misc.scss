@@ -60,3 +60,159 @@
 .grayed {
     color: $color_primary75;
 }
+
+// Problem and MCQ styling - theme-aware
+.problem-clarification {
+    border-bottom: 1px solid $color_primary25;
+}
+
+// MCQ Question Detail Page
+.mcq-header {
+    background: $color_primary5;
+    color: $color_primary90;
+    border: 1px solid $color_primary25;
+    
+    h1 {
+        color: $color_primary90;
+    }
+}
+
+.mcq-description {
+    background: $color_primary0;
+    border: 1px solid $color_primary25;
+    color: $color_primary90;
+}
+
+.mcq-option {
+    background: $color_primary0;
+    border: 2px solid $color_primary25;
+    color: $color_primary90;
+    
+    &:hover {
+        background: $color_primary5;
+    }
+    
+    // Correct answer state (green)
+    &.correct {
+        border-color: #4CAF50;
+        background: #e8f5e9;
+        color: #1b5e20 !important;  // Dark green text for both themes
+        
+        label {
+            color: #1b5e20 !important;
+        }
+    }
+    
+    // Incorrect answer state (red)
+    &.incorrect {
+        border-color: #f44336;
+        background: #ffebee;
+        color: #b71c1c !important;  // Dark red text for both themes
+        
+        label {
+            color: #b71c1c !important;
+        }
+    }
+    
+    &.not-selected {
+        opacity: 0.6;
+    }
+}
+
+// MCQ Result banners
+.mcq-result {
+    padding: 20px;
+    margin: 20px 0;
+    border-radius: 5px;
+    font-size: 18px;
+    font-weight: bold;
+    
+    &.correct {
+        background: #d4edda;
+        border: 1px solid #c3e6cb;
+        color: #155724;
+    }
+    
+    &.incorrect {
+        background: #f8d7da;
+        border: 1px solid #f5c6cb;
+        color: #721c24;
+    }
+    
+    &.info {
+        background: #e3f2fd;
+        border: 1px solid #90caf9;
+        color: #1565c0;
+    }
+}
+
+// MCQ Explanation box
+.mcq-explanation {
+    background: #e3f2fd;
+    border-left: 4px solid #2196F3;
+    padding: 15px;
+    margin-top: 20px;
+    border-radius: 3px;
+    
+    h4 {
+        margin-top: 0;
+        color: #1976D2;
+    }
+}
+
+// Unified problem page styling - theme-aware
+#unified-problem-container {
+    #problem-description-panel {
+        border-right: 2px solid $color_primary25;
+        background: $color_primary0;
+        
+        .problem-title {
+            border-bottom: 2px solid $color_primary25;
+        }
+        
+        .problem-stats {
+            border-bottom: 1px solid $color_primary25;
+        }
+    }
+    
+    #code-editor-panel {
+        background: $color_primary5;
+    }
+    
+    #editor-header {
+        background: $color_primary10;
+        border-bottom: 1px solid $color_primary25;
+        
+        select {
+            border: 1px solid $color_primary25;
+            background: $color_primary0;
+            color: $color_primary90;
+        }
+    }
+    
+    #editor-footer {
+        background: $color_primary10;
+        border-top: 1px solid $color_primary25;
+    }
+    
+    #vertical-resize-handle {
+        background: $color_primary25;
+    }
+    
+    #results-panel {
+        background: $color_primary0;
+        
+        &-header {
+            background: $color_primary10;
+            border-bottom: 1px solid $color_primary25;
+        }
+    }
+    
+    .problem-stats-line {
+        color: $color_primary90;
+    }
+    
+    .submission-status {
+        background: $color_primary10;
+    }
+}
