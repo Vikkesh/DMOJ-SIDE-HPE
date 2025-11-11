@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Change to the project directory
-cd /home/lalith/Desktop/Test_demoj_1
+cd ..
 
 # Activate the virtual environment
 source dmojsite/bin/activate
