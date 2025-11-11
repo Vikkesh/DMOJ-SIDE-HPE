@@ -643,11 +643,11 @@
             <button type="button" id="reset-code-btn">
                 Reset Code
             </button>
-            <button type="button" id="run-code-btn">
-                Run Code
+            <button type="button" id="run-code-btn"{% if not request.user.is_authenticated %} title="Please log in to run code"{% endif %}>
+                Run Code{% if not request.user.is_authenticated %} 🔒{% endif %}
             </button>
-            <button type="submit" id="submit-code-btn">
-                Submit and Next
+            <button type="submit" id="submit-code-btn"{% if not request.user.is_authenticated %} title="Please log in to submit"{% endif %}>
+                Submit and Next{% if not request.user.is_authenticated %} 🔒{% endif %}
             </button>
         </div>
 
@@ -852,6 +852,13 @@
 
     // Run Code Handler (updates the same submission entry)
     document.getElementById('run-code-btn').addEventListener('click', function() {
+        // Check if user is logged in
+        {% if not request.user.is_authenticated %}
+        alert('Please log in to run code.\n\nYou need to be logged in to test your solutions.');
+        window.location.href = '{{ url("auth_login") }}?next={{ request.path|urlencode }}';
+        return;
+        {% endif %}
+        
         var code = editor.getValue();
         var languageId = document.getElementById('language-select').value;
         
@@ -919,6 +926,13 @@
 
     // Submit Code Handler (updates the same submission entry)
     document.getElementById('submit-code-btn').addEventListener('click', function() {
+        // Check if user is logged in
+        {% if not request.user.is_authenticated %}
+        alert('Please log in to submit your solution.\n\nYou need to be logged in to submit code for grading.');
+        window.location.href = '{{ url("auth_login") }}?next={{ request.path|urlencode }}';
+        return;
+        {% endif %}
+        
         var code = editor.getValue();
         var languageId = document.getElementById('language-select').value;
         

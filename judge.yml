@@ -1,7 +1,7 @@
-id: judge_test  # <-- Judge name matching your admin panel
+id: judge_test  
 key: Ci9+rYdd92y9rRa9uWKCDImDLTeGT+UnbMYHanYqz9D7v55ieXOc1QHQraQDOqaT41d24T1Gx3Zi2+cfxS38+nnl8lvOvv+lGzwW
 problem_storage_globs:
-  - /home/lalith/HPE/site/problems/*  # <-- Matches where your problems are stored
+  - /home/lalith/HPE/site/problems/*  
 
 runtime:
     as_x64: /usr/bin/x86_64-linux-gnu-as
