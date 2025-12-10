@@ -58,7 +58,7 @@ def contest_dashboard_api(request):
                 'name': q.name,
                 'points': q.points,
                 'type': q.question_type,
-                'group': q.group.name if q.group else '',
+                'group': q.group.full_name if q.group else 'Uncategorized',
                 'types': [t.name for t in q.types.all()]
             } for q in page_obj],
             'total': paginator.count,
@@ -95,7 +95,7 @@ def contest_dashboard_api(request):
                 'code': p.code,
                 'name': p.name,
                 'points': p.points,
-                'group': p.group.name if p.group else '',
+                'group': p.group.full_name if p.group else 'Uncategorized',
                 'types': [t.name for t in p.types.all()]
             } for p in page_obj],
             'total': paginator.count,

@@ -47,17 +47,20 @@ class DashboardButtonWidget(forms.Widget):
             'function openDashboard() {{'
             '   window.open("/judge-admin/contest/dashboard/", "ContestDashboard", "width=1200,height=800,scrollbars=yes,resizable=yes");'
             '}}'
-            'window.updateContestSelections = function(problems, mcqs) {{'
+            'window.updateContestSelections = function(problems, mcqs, randomization) {{'
             '   document.getElementById("id_contest_problems_json").value = JSON.stringify(problems);'
             '   document.getElementById("id_contest_mcqs_json").value = JSON.stringify(mcqs);'
+            '   document.getElementById("id_contest_randomization_json").value = JSON.stringify(randomization);'
             '   alert("Selections updated! Click Save to persist.");'
             '}};'
             'window.getContestSelections = function() {{'
             '   const p = document.getElementById("id_contest_problems_json").value;'
             '   const m = document.getElementById("id_contest_mcqs_json").value;'
+            '   const r = document.getElementById("id_contest_randomization_json").value;'
             '   return {{'
             '       problems: p ? JSON.parse(p) : [],'
-            '       mcqs: m ? JSON.parse(m) : []'
+            '       mcqs: m ? JSON.parse(m) : [],'
+            '       randomization: r ? JSON.parse(r) : {{}}'
             '   }};'
             '}};'
             '</script>'
@@ -145,6 +148,7 @@ class ContestForm(ModelForm):
     dashboard_button = forms.CharField(required=False, widget=DashboardButtonWidget, label="Problems Dashboard")
     contest_problems_json = forms.CharField(widget=forms.HiddenInput(), required=False)
     contest_mcqs_json = forms.CharField(widget=forms.HiddenInput(), required=False)
+    contest_randomization_json = forms.CharField(widget=forms.HiddenInput(), required=False)
 
     def __init__(self, *args, **kwargs):
         super(ContestForm, self).__init__(*args, **kwargs)
@@ -160,7 +164,7 @@ class ContestForm(ModelForm):
         if self.instance and self.instance.pk:
             # Load existing selections
             p_data = []
-            for cp in self.instance.contest_problems.select_related('problem').order_by('order'):
+            for cp in self.instance.contest_problems.select_related('problem', 'problem__group').order_by('order'):
                 p_data.append({
                     'id': cp.problem_id,
                     'code': cp.problem.code,
@@ -170,21 +174,24 @@ class ContestForm(ModelForm):
                     'is_pretested': cp.is_pretested,
                     'max_submissions': cp.max_submissions,
                     'output_prefix_override': cp.output_prefix_override,
-                    'order': cp.order
+                    'order': cp.order,
+                    'group': cp.problem.group.full_name if cp.problem.group else 'Uncategorized'
                 })
             
             m_data = []
-            for cm in self.instance.contest_mcqs.select_related('mcq_question').order_by('order'):
+            for cm in self.instance.contest_mcqs.select_related('mcq_question', 'mcq_question__group').order_by('order'):
                 m_data.append({
                     'id': cm.mcq_question_id,
                     'code': cm.mcq_question.code,
                     'name': cm.mcq_question.name,
                     'points': cm.points,
-                    'order': cm.order
+                    'order': cm.order,
+                    'group': cm.mcq_question.group.full_name if cm.mcq_question.group else 'Uncategorized'
                 })
                 
             self.fields['contest_problems_json'].initial = json.dumps(p_data)
             self.fields['contest_mcqs_json'].initial = json.dumps(m_data)
+            self.fields['contest_randomization_json'].initial = json.dumps(self.instance.randomization_config)
 
     def clean(self):
         cleaned_data = super(ContestForm, self).clean()
@@ -212,7 +219,7 @@ class ContestAdmin(NoBatchDeleteMixin, SortableAdminBase, VersionAdmin):
     fieldsets = (
         (None, {'fields': ('key', 'name', 'authors', 'curators', 'testers', 'tester_see_submissions',
                            'tester_see_scoreboard', 'spectators')}),
-        (_('Problems'), {'fields': ('dashboard_button', 'contest_problems_json', 'contest_mcqs_json')}),
+        (_('Problems'), {'fields': ('dashboard_button', 'contest_problems_json', 'contest_mcqs_json', 'contest_randomization_json')}),
         (_('Settings'), {'fields': ('is_visible', 'use_clarifications', 'hide_problem_tags', 'hide_problem_authors',
                                     'show_short_display', 'run_pretests_only', 'locked_after', 'scoreboard_visibility',
                                     'points_precision')}),
@@ -352,6 +359,18 @@ class ContestAdmin(NoBatchDeleteMixin, SortableAdminBase, VersionAdmin):
                             points=points if points is not None else mcq.points,
                             order=i
                         )
+            except Exception as e:
+                pass
+
+        if 'contest_randomization_json' in form.cleaned_data and form.cleaned_data['contest_randomization_json']:
+            try:
+                randomization_data = json.loads(form.cleaned_data['contest_randomization_json'])
+                form.instance.randomization_config = randomization_data
+                # Update randomize boolean based on config
+                form.instance.randomize = randomization_data.get('regular_enabled', False) or \
+                                          randomization_data.get('mcq_enabled', False) or \
+                                          randomization_data.get('enabled', False)
+                form.instance.save(update_fields=['randomization_config', 'randomize'])
             except Exception as e:
                 pass
 

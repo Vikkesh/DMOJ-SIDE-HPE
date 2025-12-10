@@ -211,7 +211,36 @@
     <div style="height: 60px;"></div> <!-- Spacer -->
     <div class="sticky-footer">
         <span id="selection-summary">0 problems, 0 MCQs selected</span>
+        <button type="button" class="button" onclick="openRandomModal()" style="margin-right: 10px;">{% trans "Randomization Config" %}</button>
         <button type="button" class="button" onclick="saveAndClose()">{% trans "Save Changes" %}</button>
+    </div>
+
+    <!-- Randomization Modal -->
+    <div id="random-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center;">
+        <div style="background: white; padding: 20px; border-radius: 5px; width: 500px; max-height: 80%; overflow-y: auto;">
+            <h2>{% trans "Randomization Configuration" %}</h2>
+            <p>{% trans "Configure how many problems to randomly assign to each user from the selected pool." %}</p>
+            
+            <div style="margin-bottom: 15px;">
+                <label><input type="checkbox" id="enable-randomization-reg" onchange="toggleRandomConfig()"> {% trans "Enable Randomization for Regular Problems" %}</label>
+            </div>
+            <div id="random-config-reg" style="display: none;">
+                <h3>{% trans "Regular Problems" %}</h3>
+                <div id="random-regular-list"></div>
+            </div>
+
+            <div style="margin-bottom: 15px; margin-top: 20px;">
+                <label><input type="checkbox" id="enable-randomization-mcq" onchange="toggleRandomConfig()"> {% trans "Enable Randomization for MCQ Problems" %}</label>
+            </div>
+            <div id="random-config-mcq" style="display: none;">
+                <h3>{% trans "MCQ Problems" %}</h3>
+                <div id="random-mcq-list"></div>
+            </div>
+            
+            <div style="text-align: right; margin-top: 20px;">
+                <button type="button" onclick="closeRandomModal()">{% trans "Close" %}</button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -229,7 +258,8 @@
             view: 'browse'
         },
         selectedProblems: new Map(), // ID -> Object
-        selectedMCQs: new Map()      // ID -> Object
+        selectedMCQs: new Map(),      // ID -> Object
+        randomization: { enabled: false, config: {} }
     };
     
     // Init
@@ -241,8 +271,18 @@
         // Load initial selection from parent if available
         if (window.opener && window.opener.getContestSelections) {
             const selections = window.opener.getContestSelections();
-            selections.problems.forEach(p => state.selectedProblems.set(parseInt(p.id), p));
-            selections.mcqs.forEach(m => state.selectedMCQs.set(parseInt(m.id), m));
+            console.log('Loaded selections from parent:', selections);
+            selections.problems.forEach(p => {
+                console.log('Loading problem:', p.id, 'group:', p.group);
+                state.selectedProblems.set(parseInt(p.id), p);
+            });
+            selections.mcqs.forEach(m => {
+                console.log('Loading MCQ:', m.id, 'group:', m.group);
+                state.selectedMCQs.set(parseInt(m.id), m);
+            });
+            if (selections.randomization) {
+                state.randomization = selections.randomization;
+            }
             updateSummary();
         }
     });
@@ -432,6 +472,7 @@
                     code: item.code,
                     name: item.name,
                     points: item.points,
+                    group: item.group || category, // Fallback to column category if group is missing
                     partial: true,
                     is_pretested: false,
                     max_submissions: null,
@@ -479,6 +520,7 @@
                 code: item.code,
                 name: item.name,
                 points: item.points,
+                group: item.group || category, // Use API group or fallback to column category
                 partial: true,
                 is_pretested: false,
                 max_submissions: null,
@@ -545,7 +587,8 @@
                     id: item.id,
                     code: item.code,
                     name: item.name,
-                    points: item.points
+                    points: item.points,
+                    group: item.group
                 });
             }
         } else {
@@ -588,14 +631,119 @@
     
     function saveAndClose() {
         if (window.opener && window.opener.updateContestSelections) {
+            saveRandomConfigState();
             window.opener.updateContestSelections(
                 Array.from(state.selectedProblems.values()),
-                Array.from(state.selectedMCQs.values())
+                Array.from(state.selectedMCQs.values()),
+                state.randomization
             );
             window.close();
         } else {
             alert('Parent window not found or compatible. Cannot save.');
         }
+    }
+
+    // Randomization Logic
+    function openRandomModal() {
+        document.getElementById('random-modal').style.display = 'flex';
+        // Backward compatibility: if 'enabled' is true, enable both unless specific flags exist
+        if (state.randomization.enabled !== undefined && state.randomization.regular_enabled === undefined) {
+            state.randomization.regular_enabled = state.randomization.enabled;
+            state.randomization.mcq_enabled = state.randomization.enabled;
+        }
+        
+        document.getElementById('enable-randomization-reg').checked = state.randomization.regular_enabled || false;
+        document.getElementById('enable-randomization-mcq').checked = state.randomization.mcq_enabled || false;
+        toggleRandomConfig();
+        renderRandomConfig();
+    }
+
+    function closeRandomModal() {
+        saveRandomConfigState();
+        document.getElementById('random-modal').style.display = 'none';
+    }
+
+    function toggleRandomConfig() {
+        const regEnabled = document.getElementById('enable-randomization-reg').checked;
+        const mcqEnabled = document.getElementById('enable-randomization-mcq').checked;
+        document.getElementById('random-config-reg').style.display = regEnabled ? 'block' : 'none';
+        document.getElementById('random-config-mcq').style.display = mcqEnabled ? 'block' : 'none';
+    }
+
+    function renderRandomConfig() {
+        // Group Regular Problems
+        const regGroups = {};
+        state.selectedProblems.forEach(p => {
+            // Ensure we have a valid group name (use 'Uncategorized' for empty/null/undefined)
+            const g = (p.group && p.group.trim()) ? p.group : 'Uncategorized';
+            if (!regGroups[g]) regGroups[g] = 0;
+            regGroups[g]++;
+        });
+
+        const regList = document.getElementById('random-regular-list');
+        regList.innerHTML = '';
+        if (Object.keys(regGroups).length === 0) {
+            regList.innerHTML = '<p>No regular problems selected.</p>';
+        } else {
+            for (const [group, count] of Object.entries(regGroups)) {
+                const currentVal = (state.randomization.config && state.randomization.config[group] !== undefined) ? state.randomization.config[group] : count;
+                regList.innerHTML += `
+                    <div style="margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+                        <label>${group} (Total: ${count})</label>
+                        <div>
+                            <input type="number" class="random-input" data-group="${group}" data-max="${count}" value="${currentVal}" min="0" max="${count}" style="width: 60px;">
+                            <span> to select</span>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        // Group MCQs
+        const mcqGroups = {};
+        state.selectedMCQs.forEach(m => {
+            // Ensure we have a valid group name (use 'Uncategorized' for empty/null/undefined)
+            const g = (m.group && m.group.trim()) ? m.group : 'Uncategorized';
+            if (!mcqGroups[g]) mcqGroups[g] = 0;
+            mcqGroups[g]++;
+        });
+
+        const mcqList = document.getElementById('random-mcq-list');
+        mcqList.innerHTML = '';
+        if (Object.keys(mcqGroups).length === 0) {
+            mcqList.innerHTML = '<p>No MCQs selected.</p>';
+        } else {
+            for (const [group, count] of Object.entries(mcqGroups)) {
+                const key = `MCQ:${group}`;
+                const currentVal = (state.randomization.config && state.randomization.config[key] !== undefined) ? state.randomization.config[key] : count;
+                mcqList.innerHTML += `
+                    <div style="margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+                        <label>${group} (Total: ${count})</label>
+                        <div>
+                            <input type="number" class="random-input" data-group="${key}" data-max="${count}" value="${currentVal}" min="0" max="${count}" style="width: 60px;">
+                            <span> to select</span>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+    }
+
+    function saveRandomConfigState() {
+        state.randomization.regular_enabled = document.getElementById('enable-randomization-reg').checked;
+        state.randomization.mcq_enabled = document.getElementById('enable-randomization-mcq').checked;
+        // Set legacy enabled flag for compatibility
+        state.randomization.enabled = state.randomization.regular_enabled || state.randomization.mcq_enabled;
+        
+        if (!state.randomization.config) state.randomization.config = {};
+        
+        document.querySelectorAll('.random-input').forEach(input => {
+            const group = input.dataset.group;
+            const val = parseInt(input.value);
+            if (!isNaN(val)) {
+                state.randomization.config[group] = val;
+            }
+        });
     }
 </script>
 {% endblock %}
